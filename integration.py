@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Bot token
-TOKEN = "7658672268:AAEHvAKeT9LT5jhkwL2ygMpt1SMzztnSZOM"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Initialize Flask app
 app = Flask(__name__, 
