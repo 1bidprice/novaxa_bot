@@ -36,7 +36,7 @@ Fill in the following details:
 
 Click on "Advanced" and then "Add Environment Variable" to add the following:
 
-- `BOT_TOKEN`: `7658672268:AAHbvuM4fxYr2kiA-Aiynjgm5VPVTiYXe8U`
+- `BOT_TOKEN = os.getenv("BOT_TOKEN")`
 - `WEBHOOK_ENABLED`: `False`
 - `DEBUG`: `False`
 - `PORT`: `10000`
