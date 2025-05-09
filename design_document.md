@@ -1,146 +1,331 @@
-# NOVAXA Web Interface Design
+# Έγγραφο Σχεδιασμού - Enhanced Telegram Bot
 
-## Overview
-This document outlines the design for the NOVAXA web interface, which will complement the existing Telegram bot functionality. The web interface will provide a comprehensive dashboard for monitoring stocks, managing projects, and receiving notifications.
+## Περιεχόμενα
+1. [Εισαγωγή](#εισαγωγή)
+2. [Αρχιτεκτονική](#αρχιτεκτονική)
+3. [Μοντέλο Δεδομένων](#μοντέλο-δεδομένων)
+4. [Ροές Εργασίας](#ροές-εργασίας)
+5. [Διεπαφές](#διεπαφές)
+6. [Ασφάλεια](#ασφάλεια)
+7. [Επεκτασιμότητα](#επεκτασιμότητα)
+8. [Περιορισμοί](#περιορισμοί)
+9. [Μελλοντικές Βελτιώσεις](#μελλοντικές-βελτιώσεις)
 
-## Design Goals
-- Create a professional, modern interface
-- Ensure responsive design for all devices
-- Provide real-time data updates
-- Maintain consistency with the Telegram bot functionality
-- Secure access to sensitive information
+## Εισαγωγή
 
-## Site Structure
+Το παρόν έγγραφο περιγράφει τον σχεδιασμό του Enhanced Telegram Bot, μιας προηγμένης πλατφόρμας για τη δημιουργία και διαχείριση bots στο Telegram. Το έγγραφο απευθύνεται σε προγραμματιστές και τεχνικούς που θα εργαστούν στην ανάπτυξη, συντήρηση και επέκταση του συστήματος.
 
-### 1. Main Pages
-- **Login Page**: Secure access to the dashboard
-- **Dashboard**: Overview of all key metrics and alerts
-- **Stocks**: Detailed stock monitoring for Athens Stock Exchange
-- **Projects**: Management interface for BidPrice, Amesis, and Project6225
-- **Notifications**: System for alerts and messages
-- **Settings**: Configuration options for the web interface and bot
+### Στόχοι Σχεδιασμού
 
-### 2. Dashboard Layout
-The dashboard will be divided into the following sections:
-- **Header**: Navigation menu, user info, and quick actions
-- **Stock Ticker**: Real-time stock prices in a scrolling banner
-- **Project Status Cards**: Quick overview of all projects
-- **Recent Alerts**: Latest notifications and alerts
-- **Performance Metrics**: Key performance indicators for all projects
+1. **Ευελιξία**: Δημιουργία ενός συστήματος που μπορεί εύκολα να προσαρμοστεί σε διαφορετικές ανάγκες
+2. **Επεκτασιμότητα**: Σχεδιασμός που επιτρέπει την εύκολη προσθήκη νέων λειτουργιών
+3. **Αξιοπιστία**: Εξασφάλιση σταθερής λειτουργίας με ελάχιστες διακοπές
+4. **Παρακολουθησιμότητα**: Ενσωμάτωση εκτενών δυνατοτήτων παρακολούθησης και καταγραφής
+5. **Ασφάλεια**: Προστασία ευαίσθητων δεδομένων και διασφάλιση ασφαλούς λειτουργίας
 
-### 3. Stocks Page
-- **Stock Watchlist**: Customizable list of stocks to monitor
-- **Stock Details**: Detailed information for selected stocks
-- **Price Charts**: Visual representation of stock performance
-- **Alert Configuration**: Interface to set price thresholds for alerts
+## Αρχιτεκτονική
 
-### 4. Projects Section
-Each project (BidPrice, Amesis, Project6225) will have its own dedicated page with:
-- **Status Overview**: Current state and key metrics
-- **Activity Logs**: Recent actions and events
-- **Performance Metrics**: Specific KPIs for each project
-- **Management Tools**: Project-specific actions and controls
+### Επισκόπηση Αρχιτεκτονικής
 
-#### BidPrice Page
-- Active listings monitoring
-- Bid notifications
-- Status reports
+Το Enhanced Telegram Bot ακολουθεί μια αρθρωτή αρχιτεκτονική με διακριτά συστατικά που επικοινωνούν μεταξύ τους. Η αρχιτεκτονική βασίζεται στο μοντέλο διαχωρισμού ευθυνών (separation of concerns), όπου κάθε συστατικό έχει συγκεκριμένο ρόλο και αρμοδιότητες.
 
-#### Amesis Page
-- Mass alert sending interface
-- Delivery logs
-- Activity reports
+### Διάγραμμα Αρχιτεκτονικής
 
-#### Project6225 Page
-- Product performance metrics
-- Trend analysis
-- Arbitrage planning tools
+```
++----------------------------------+
+|         Enhanced Bot Core        |
+|  +-------------+  +------------+ |
+|  | Command     |  | Message    | |
+|  | Handlers    |  | Handlers   | |
+|  +-------------+  +------------+ |
+|  +-------------+  +------------+ |
+|  | Callback    |  | Error      | |
+|  | Handlers    |  | Handlers   | |
+|  +-------------+  +------------+ |
++----------------------------------+
+              |
++----------------------------------+
+|         Service Layer            |
+|  +-------------+  +------------+ |
+|  | API         |  | Integration| |
+|  | Client      |  | Services   | |
+|  +-------------+  +------------+ |
++----------------------------------+
+              |
++----------------------------------+
+|         Infrastructure           |
+|  +-------------+  +------------+ |
+|  | Monitoring  |  | Deployment | |
+|  | System      |  | System     | |
+|  +-------------+  +------------+ |
+|  +-------------+  +------------+ |
+|  | Dashboard   |  | Testing    | |
+|  | Interface   |  | Framework  | |
+|  +-------------+  +------------+ |
++----------------------------------+
+```
 
-### 5. Notifications Center
-- **Alert History**: Record of all past alerts
-- **Alert Configuration**: Interface to set up new alerts
-- **Broadcast Tool**: Interface for sending mass messages
-- **Scheduled Notifications**: Setup for recurring alerts
+### Συστατικά
 
-## Visual Design
+#### 1. Enhanced Bot Core
+Το κύριο συστατικό που διαχειρίζεται την αλληλεπίδραση με το Telegram API και τους χρήστες.
 
-### Color Scheme
-- Primary: #1E88E5 (Blue)
-- Secondary: #26A69A (Teal)
-- Accent: #FFC107 (Amber)
-- Background: #F5F7FA (Light Gray)
-- Text: #333333 (Dark Gray)
-- Success: #4CAF50 (Green)
-- Warning: #FF9800 (Orange)
-- Error: #F44336 (Red)
+- **Command Handlers**: Διαχειρίζονται τις εντολές που αποστέλλονται στο bot
+- **Message Handlers**: Επεξεργάζονται τα μηνύματα κειμένου και πολυμέσων
+- **Callback Handlers**: Χειρίζονται τις απαντήσεις από κουμπιά inline και callbacks
+- **Error Handlers**: Διαχειρίζονται σφάλματα και εξαιρέσεις
 
-### Typography
-- Headings: Roboto, sans-serif
-- Body: Open Sans, sans-serif
-- Monospace: Roboto Mono (for code and data)
+#### 2. Service Layer
+Παρέχει υπηρεσίες που χρησιμοποιούνται από το Bot Core.
 
-### UI Components
-- **Cards**: For displaying grouped information
-- **Tables**: For structured data display
-- **Charts**: For visual data representation
-- **Alerts**: For notifications and warnings
-- **Buttons**: For actions and navigation
-- **Forms**: For data input and configuration
+- **API Client**: Διαχειρίζεται την επικοινωνία με εξωτερικά API
+- **Integration Services**: Παρέχει ενσωμάτωση με άλλες υπηρεσίες και πλατφόρμες
 
-## Technical Considerations
+#### 3. Infrastructure
+Παρέχει υποστήριξη για την παρακολούθηση, ανάπτυξη και δοκιμή του bot.
 
-### Frontend Framework
-- React.js for component-based UI development
-- Redux for state management
-- Chart.js for data visualization
-- Material-UI for consistent component styling
+- **Monitoring System**: Παρακολουθεί την απόδοση και τη δραστηριότητα του bot
+- **Deployment System**: Διαχειρίζεται την ανάπτυξη του bot σε διάφορα περιβάλλοντα
+- **Dashboard Interface**: Παρέχει μια διαδραστική διεπαφή για την παρακολούθηση και διαχείριση
+- **Testing Framework**: Υποστηρίζει τη δοκιμή της λειτουργικότητας του bot
 
-### Backend Integration
-- RESTful API for data exchange with the backend
-- WebSockets for real-time updates
-- Integration with the existing Telegram bot API
-- Authentication system for secure access
+### Ροή Δεδομένων
 
-### Responsive Design
-- Mobile-first approach
-- Breakpoints for different device sizes:
-  - Mobile: < 768px
-  - Tablet: 768px - 1024px
-  - Desktop: > 1024px
+1. Ο χρήστης αλληλεπιδρά με το bot στο Telegram
+2. Το Telegram API προωθεί την αλληλεπίδραση στο Enhanced Bot Core
+3. Οι κατάλληλοι handlers επεξεργάζονται την αλληλεπίδραση
+4. Αν χρειάζεται, το Bot Core καλεί υπηρεσίες από το Service Layer
+5. Το Service Layer μπορεί να επικοινωνήσει με εξωτερικά API ή υπηρεσίες
+6. Το Monitoring System καταγράφει τη δραστηριότητα και την απόδοση
+7. Το Bot Core στέλνει απάντηση πίσω στον χρήστη μέσω του Telegram API
 
-## User Flows
+## Μοντέλο Δεδομένων
 
-### Stock Monitoring Flow
-1. User logs into the dashboard
-2. Navigates to the Stocks page
-3. Views current stock prices and performance
-4. Sets up alerts for specific price thresholds
-5. Receives notifications when thresholds are reached
+### Κύριες Οντότητες
 
-### Project Management Flow
-1. User logs into the dashboard
-2. Navigates to the specific project page
-3. Views project status and metrics
-4. Takes actions based on the data (e.g., responds to new bids)
-5. Sets up automated alerts for specific events
+#### User
+Αντιπροσωπεύει έναν χρήστη του bot.
 
-### Notification Management Flow
-1. User logs into the dashboard
-2. Navigates to the Notifications center
-3. Reviews past alerts and messages
-4. Configures new alerts or scheduled notifications
-5. Tests notification delivery
+```python
+{
+    "id": int,                # Telegram user ID
+    "first_name": str,        # Όνομα χρήστη
+    "last_name": str,         # Επώνυμο χρήστη (προαιρετικό)
+    "username": str,          # Όνομα χρήστη Telegram (προαιρετικό)
+    "language_code": str,     # Κωδικός γλώσσας χρήστη
+    "is_admin": bool,         # Αν ο χρήστης είναι διαχειριστής
+    "created_at": datetime,   # Πότε δημιουργήθηκε ο χρήστης
+    "last_activity": datetime # Τελευταία δραστηριότητα
+}
+```
 
-## Mockups
-(Detailed mockups will be created for each main page and component)
+#### Message
+Αντιπροσωπεύει ένα μήνυμα που στάλθηκε ή λήφθηκε.
 
-## Implementation Plan
-1. Create HTML/CSS templates for all pages
-2. Implement frontend functionality with React
-3. Develop backend API endpoints
-4. Integrate with Telegram bot functionality
-5. Test all features and user flows
-6. Deploy to production environment
+```python
+{
+    "id": int,                # Αναγνωριστικό μηνύματος
+    "chat_id": int,           # Αναγνωριστικό συνομιλίας
+    "user_id": int,           # Αναγνωριστικό χρήστη
+    "text": str,              # Κείμενο μηνύματος (προαιρετικό)
+    "media_type": str,        # Τύπος πολυμέσων (προαιρετικό)
+    "media_id": str,          # Αναγνωριστικό πολυμέσων (προαιρετικό)
+    "timestamp": datetime,    # Χρονική σήμανση
+    "is_command": bool,       # Αν είναι εντολή
+    "command": str,           # Εντολή (προαιρετικό)
+    "args": list              # Ορίσματα εντολής (προαιρετικό)
+}
+```
 
-## Conclusion
-This design document provides a comprehensive blueprint for the NOVAXA web interface. The implementation will focus on creating a professional, user-friendly platform that enhances the existing Telegram bot functionality and provides powerful tools for stock monitoring and project management.
+#### Activity
+Αντιπροσωπεύει μια δραστηριότητα χρήστη.
+
+```python
+{
+    "user_id": int,           # Αναγνωριστικό χρήστη
+    "activity_type": str,     # Τύπος δραστηριότητας
+    "timestamp": datetime,    # Χρονική σήμανση
+    "details": dict,          # Λεπτομέρειες δραστηριότητας
+    "is_admin": bool          # Αν η δραστηριότητα έγινε από διαχειριστή
+}
+```
+
+#### Log
+Αντιπροσωπεύει μια καταγραφή συστήματος.
+
+```python
+{
+    "timestamp": datetime,    # Χρονική σήμανση
+    "level": str,             # Επίπεδο καταγραφής (INFO, WARNING, ERROR, κλπ.)
+    "message": str,           # Μήνυμα καταγραφής
+    "user_id": int,           # Αναγνωριστικό χρήστη (προαιρετικό)
+    "extra": dict             # Επιπλέον δεδομένα
+}
+```
+
+#### Deployment
+Αντιπροσωπεύει μια ανάπτυξη του bot.
+
+```python
+{
+    "id": str,                # Αναγνωριστικό ανάπτυξης
+    "environment": str,       # Περιβάλλον (local, staging, production)
+    "start_time": datetime,   # Χρόνος έναρξης
+    "end_time": datetime,     # Χρόνος ολοκλήρωσης
+    "duration": float,        # Διάρκεια σε δευτερόλεπτα
+    "status": str,            # Κατάσταση (success, error)
+    "error": str,             # Μήνυμα σφάλματος (προαιρετικό)
+    "options": dict           # Επιλογές ανάπτυξης
+}
+```
+
+### Αποθήκευση Δεδομένων
+
+Το Enhanced Telegram Bot χρησιμοποιεί διάφορες μεθόδους αποθήκευσης δεδομένων:
+
+1. **Αρχεία JSON**: Για ρυθμίσεις και δεδομένα διαμόρφωσης
+2. **Αρχεία Καταγραφής**: Για καταγραφές συστήματος και δραστηριότητας
+3. **Μνήμη**: Για προσωρινή αποθήκευση δεδομένων κατά τη διάρκεια της εκτέλεσης
+
+Σε μελλοντικές εκδόσεις, μπορεί να προστεθεί υποστήριξη για βάσεις δεδομένων όπως SQLite, PostgreSQL ή MongoDB.
+
+## Ροές Εργασίας
+
+### Επεξεργασία Εντολών
+
+1. Ο χρήστης στέλνει μια εντολή στο bot (π.χ., `/start`)
+2. Το Telegram API προωθεί την εντολή στο bot
+3. Ο CommandHandler αναγνωρίζει την εντολή και καλεί την κατάλληλη συνάρτηση χειρισμού
+4. Η συνάρτηση χειρισμού επεξεργάζεται την εντολή και προετοιμάζει μια απάντηση
+5. Το bot στέλνει την απάντηση πίσω στον χρήστη
+6. Το Monitoring System καταγράφει τη δραστηριότητα
+
+### Ενσωμάτωση API
+
+1. Ο χρήστης ζητά πληροφορίες που απαιτούν εξωτερικό API (π.χ., καιρός)
+2. Το bot αναγνωρίζει το αίτημα και καλεί το API Client
+3. Το API Client κάνει αίτημα στο εξωτερικό API
+4. Το εξωτερικό API επιστρέφει δεδομένα
+5. Το API Client επεξεργάζεται τα δεδομένα και τα επιστρέφει στο bot
+6. Το bot μορφοποιεί τα δεδομένα και τα στέλνει στον χρήστη
+7. Το Monitoring System καταγράφει τη δραστηριότητα και την απόδοση του API
+
+### Ανάπτυξη
+
+1. Ο προγραμματιστής ξεκινά τη διαδικασία ανάπτυξης
+2. Το Deployment System ελέγχει τις προϋποθέσεις και προετοιμάζει την ανάπτυξη
+3. Τα αρχεία αντιγράφονται στο περιβάλλον-στόχο
+4. Οι ρυθμίσεις διαμορφώνονται για το περιβάλλον-στόχο
+5. Το bot επανεκκινείται στο περιβάλλον-στόχο
+6. Το Deployment System επαληθεύει την επιτυχή ανάπτυξη
+7. Το Monitoring System ενημερώνεται για τη νέα ανάπτυξη
+
+### Παρακολούθηση
+
+1. Το Monitoring System συλλέγει δεδομένα για την απόδοση και τη δραστηριότητα του bot
+2. Τα δεδομένα αποθηκεύονται και αναλύονται
+3. Το Dashboard Interface εμφανίζει τα δεδομένα σε πραγματικό χρόνο
+4. Αν εντοπιστούν προβλήματα, το Monitoring System μπορεί να στείλει ειδοποιήσεις
+5. Οι διαχειριστές μπορούν να δουν λεπτομερείς αναφορές και να λάβουν μέτρα
+
+## Διεπαφές
+
+### Telegram Bot API
+
+Το Enhanced Telegram Bot επικοινωνεί με το Telegram Bot API για να λάβει ενημερώσεις και να στείλει μηνύματα. Χρησιμοποιεί τη βιβλιοθήκη python-telegram-bot για να απλοποιήσει αυτή την επικοινωνία.
+
+### Εξωτερικά API
+
+Το bot μπορεί να επικοινωνήσει με διάφορα εξωτερικά API μέσω του API Client. Υποστηρίζει:
+
+- RESTful API με JSON
+- GraphQL API
+- OAuth για έλεγχο ταυτότητας
+- Webhook για λήψη ενημερώσεων
+
+### Πίνακας Ελέγχου
+
+Ο πίνακας ελέγχου παρέχει μια διαδραστική διεπαφή web για την παρακολούθηση και διαχείριση του bot. Περιλαμβάνει:
+
+- Προβολή κατάστασης συστήματος
+- Γραφήματα απόδοσης
+- Προβολή αρχείων καταγραφής
+- Διαχείριση ρυθμίσεων
+- Έλεγχος λειτουργίας συντήρησης
+
+## Ασφάλεια
+
+### Έλεγχος Ταυτότητας και Εξουσιοδότηση
+
+- Το bot χρησιμοποιεί το token του Telegram για έλεγχο ταυτότητας με το Telegram API
+- Οι διαχειριστές του bot προσδιορίζονται με βάση τα αναγνωριστικά χρηστών Telegram
+- Ορισμένες εντολές περιορίζονται μόνο σε διαχειριστές
+
+### Προστασία Δεδομένων
+
+- Τα ευαίσθητα δεδομένα (όπως tokens API) αποθηκεύονται σε αρχεία περιβάλλοντος
+- Τα αρχεία περιβάλλοντος δεν συμπεριλαμβάνονται στον έλεγχο έκδοσης
+- Τα δεδομένα χρηστών αποθηκεύονται μόνο όπως απαιτείται για τη λειτουργία του bot
+
+### Ασφάλεια Επικοινωνίας
+
+- Η επικοινωνία με το Telegram API γίνεται μέσω HTTPS
+- Τα webhooks απαιτούν HTTPS με έγκυρο πιστοποιητικό
+- Οι κλήσεις API χρησιμοποιούν HTTPS και περιλαμβάνουν έλεγχο ταυτότητας όπου είναι απαραίτητο
+
+## Επεκτασιμότητα
+
+### Προσθήκη Νέων Εντολών
+
+Το bot είναι σχεδιασμένο για εύκολη προσθήκη νέων εντολών. Οι προγραμματιστές μπορούν να προσθέσουν νέες συναρτήσεις χειρισμού εντολών και να τις καταχωρίσουν με το dispatcher.
+
+### Ενσωμάτωση Νέων API
+
+Το API Client είναι σχεδιασμένο για εύκολη προσθήκη νέων ενσωματώσεων API. Οι προγραμματιστές μπορούν να προσθέσουν νέες μεθόδους για την επικοινωνία με πρόσθετα API.
+
+### Επέκταση Παρακολούθησης
+
+Το Monitoring System μπορεί να επεκταθεί για την παρακολούθηση πρόσθετων μετρήσεων και την παροχή πρόσθετων αναφορών.
+
+### Προσαρμογή Πίνακα Ελέγχου
+
+Ο πίνακας ελέγχου μπορεί να προσαρμοστεί με πρόσθετα γραφήματα, προβολές και λειτουργίες διαχείρισης.
+
+## Περιορισμοί
+
+### Περιορισμοί Telegram API
+
+- Όρια συχνότητας για αποστολή μηνυμάτων
+- Περιορισμοί στο μέγεθος και τον τύπο των αρχείων που μπορούν να αποσταλούν
+- Περιορισμοί στη μορφοποίηση κειμένου
+
+### Περιορισμοί Συστήματος
+
+- Δεν υπάρχει ενσωματωμένη βάση δεδομένων για μόνιμη αποθήκευση
+- Περιορισμένη υποστήριξη για πολλαπλά bots
+- Δεν υπάρχει ενσωματωμένο σύστημα διαχείρισης χρηστών
+
+### Περιορισμοί Ανάπτυξης
+
+- Περιορισμένη υποστήριξη για αυτόματη κλιμάκωση
+- Χειροκίνητη διαμόρφωση απαιτείται για ορισμένες πλατφόρμες ανάπτυξης
+
+## Μελλοντικές Βελτιώσεις
+
+### Βραχυπρόθεσμες Βελτιώσεις
+
+- Προσθήκη υποστήριξης για βάση δεδομένων (SQLite, PostgreSQL)
+- Βελτίωση του πίνακα ελέγχου με πρόσθετα γραφήματα και αναφορές
+- Προσθήκη υποστήριξης για πολλαπλές γλώσσες
+
+### Μεσοπρόθεσμες Βελτιώσεις
+
+- Υλοποίηση συστήματος διαχείρισης χρηστών
+- Προσθήκη υποστήριξης για πολλαπλά bots
+- Βελτίωση της αυτόματης κλιμάκωσης και της ανθεκτικότητας
+
+### Μακροπρόθεσμες Βελτιώσεις
+
+- Υλοποίηση μηχανισμών τεχνητής νοημοσύνης για αυτόματες απαντήσεις
+- Δημιουργία οικοσυστήματος πρόσθετων για επέκταση της λειτουργικότητας
+- Ανάπτυξη διεπαφής γραφικού περιβάλλοντος για τη δημιουργία και διαχείριση bots

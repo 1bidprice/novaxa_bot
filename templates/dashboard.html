@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bot Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="{{ url_for('static', filename='logo.png') }}" alt="Telegram Bot Logo">
+                    <h1>Telegram Bot Dashboard</h1>
+                </div>
+                <div class="user-info">
+                    <img src="{{ url_for('static', filename='avatar.png') }}" alt="User Avatar" class="user-avatar">
+                    <span>{{ username }}</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <nav class="nav">
+            <ul class="nav-list">
+                <li class="nav-item active" data-target="dashboardSection">Πίνακας Ελέγχου</li>
+                <li class="nav-item" data-target="statisticsSection">Στατιστικά</li>
+                <li class="nav-item" data-target="usersSection">Χρήστες</li>
+                <li class="nav-item" data-target="messagesSection">Μηνύματα</li>
+                <li class="nav-item" data-target="settingsSection">Ρυθμίσεις</li>
+            </ul>
+        </nav>
+
+        <!-- Dashboard Section -->
+        <section id="dashboardSection" class="section">
+            <div class="dashboard">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Ενεργοί Χρήστες</h2>
+                        <span class="card-icon">👥</span>
+                    </div>
+                    <div class="card-value" id="activeUsers">{{ active_users }}</div>
+                    <p class="card-description">Χρήστες που αλληλεπίδρασαν με το bot τις τελευταίες 24 ώρες</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Μηνύματα</h2>
+                        <span class="card-icon">💬</span>
+                    </div>
+                    <div class="card-value" id="messageCount">{{ message_count }}</div>
+                    <p class="card-description">Συνολικά μηνύματα που έχουν σταλεί</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Κατάσταση Bot</h2>
+                        <span class="card-icon">🤖</span>
+                    </div>
+                    <div class="status {{ status_class }}" id="botStatus">{{ status_text }}</div>
+                    <p class="card-description">Τελευταία ενημέρωση: {{ last_update }}</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Χρόνος Λειτουργίας</h2>
+                        <span class="card-icon">⏱️</span>
+                    </div>
+                    <div class="card-value">{{ uptime }}</div>
+                    <p class="card-description">Συνεχόμενος χρόνος λειτουργίας</p>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2 class="chart-title">Δραστηριότητα Χρηστών</h2>
+                    <div class="chart-filters">
+                        <span class="chart-filter active" data-period="day">Ημέρα</span>
+                        <span class="chart-filter" data-period="week">Εβδομάδα</span>
+                        <span class="chart-filter" data-period="month">Μήνας</span>
+                    </div>
+                </div>
+                <div class="chart">
+                    <canvas id="userActivityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <h2>Πρόσφατες Ενέργειες</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Χρήστης</th>
+                            <th>Ενέργεια</th>
+                            <th>Χρόνος</th>
+                            <th>Κατάσταση</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for action in recent_actions %}
+                        <tr>
+                            <td>{{ action.user }}</td>
+                            <td>{{ action.action }}</td>
+                            <td>{{ action.time }}</td>
+                            <td>
+                                <span class="status {{ action.status_class }}">{{ action.status }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Statistics Section -->
+        <section id="statisticsSection" class="section" style="display: none;">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2 class="chart-title">Χρήση Εντολών</h2>
+                    <div class="chart-filters">
+                        <span class="chart-filter active" data-period="week">Εβδομάδα</span>
+                        <span class="chart-filter" data-period="month">Μήνας</span>
+                        <span class="chart-filter" data-period="year">Έτος</span>
+                    </div>
+                </div>
+                <div class="chart">
+                    <canvas id="commandUsageChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2 class="chart-title">Χρόνος Απόκρισης</h2>
+                </div>
+                <div class="chart">
+                    <canvas id="responseTimeChart"></canvas>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <h2>Κορυφαίες Εντολές</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Εντολή</th>
+                            <th>Χρήσεις</th>
+                            <th>Ποσοστό</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for command in top_commands %}
+                        <tr>
+                            <td>{{ command.name }}</td>
+                            <td>{{ command.count }}</td>
+                            <td>{{ command.percentage }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Users Section -->
+        <section id="usersSection" class="section" style="display: none;">
+            <div class="table-container">
+                <h2>Λίστα Χρηστών</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Όνομα</th>
+                            <th>Ημερομηνία Εγγραφής</th>
+                            <th>Τελευταία Δραστηριότητα</th>
+                            <th>Ενέργειες</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.name }}</td>
+                            <td>{{ user.registration_date }}</td>
+                            <td>{{ user.last_activity }}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm">Προβολή</button>
+                                <button class="btn btn-primary btn-sm">Μήνυμα</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Messages Section -->
+        <section id="messagesSection" class="section" style="display: none;">
+            <div class="form-container">
+                <h2>Αποστολή Μηνύματος</h2>
+                <form id="messageForm">
+                    <div class="form-group">
+                        <label for="targetUsers" class="form-label">Παραλήπτες</label>
+                        <select id="targetUsers" name="targetUsers" class="form-select">
+                            <option value="all">Όλοι οι χρήστες</option>
+                            <option value="active">Ενεργοί χρήστες</option>
+                            <option value="inactive">Ανενεργοί χρήστες</option>
+                            <option value="custom">Προσαρμοσμένη επιλογή</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="message" class="form-label">Μήνυμα</label>
+                        <textarea id="message" name="message" class="form-textarea" placeholder="Γράψτε το μήνυμά σας εδώ..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleTime" class="form-label">Προγραμματισμός (προαιρετικό)</label>
+                        <input type="datetime-local" id="scheduleTime" name="scheduleTime" class="form-input">
+                    </div>
+                    <button type="submit" class="btn">Αποστολή</button>
+                </form>
+            </div>
+
+            <div class="table-container">
+                <h2>Ιστορικό Μηνυμάτων</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Ημερομηνία</th>
+                            <th>Παραλήπτες</th>
+                            <th>Μήνυμα</th>
+                            <th>Κατάσταση</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for message in message_history %}
+                        <tr>
+                            <td>{{ message.date }}</td>
+                            <td>{{ message.recipients }}</td>
+                            <td>{{ message.content }}</td>
+                            <td>
+                                <span class="status {{ message.status_class }}">{{ message.status }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settingsSection" class="section" style="display: none;">
+            <div class="form-container">
+                <h2>Ρυθμίσεις Bot</h2>
+                <form id="configForm">
+                    <div class="form-group">
+                        <label for="botToken" class="form-label">Bot Token</label>
+                        <input type="text" id="botToken" name="botToken" class="form-input" value="{{ bot_token }}" placeholder="Εισάγετε το Bot Token">
+                    </div>
+                    <div class="form-group">
+                        <label for="botName" class="form-label">Όνομα Bot</label>
+                        <input type="text" id="botName" name="botName" class="form-input" value="{{ bot_name }}" placeholder="Εισάγετε το όνομα του Bot">
+                    </div>
+                    <div class="form-group">
+                        <label for="webhookUrl" class="form-label">Webhook URL</label>
+                        <input type="text" id="webhookUrl" name="webhookUrl" class="form-input" value="{{ webhook_url }}" placeholder="Εισάγετε το Webhook URL">
+                    </div>
+                    <div class="form-group">
+                        <label for="welcomeMessage" class="form-label">Μήνυμα Καλωσορίσματος</label>
+                        <textarea id="welcomeMessage" name="welcomeMessage" class="form-textarea" placeholder="Εισάγετε το μήνυμα καλωσορίσματος">{{ welcome_message }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Επιλογές</label>
+                        <div>
+                            <input type="checkbox" id="enableNotifications" name="enableNotifications" {% if enable_notifications %}checked{% endif %}>
+                            <label for="enableNotifications">Ενεργοποίηση ειδοποιήσεων</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="logMessages" name="logMessages" {% if log_messages %}checked{% endif %}>
+                            <label for="logMessages">Καταγραφή μηνυμάτων</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="darkModeToggle" name="darkMode">
+                            <label for="darkModeToggle">Σκοτεινό θέμα</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Αποθήκευση Ρυθμίσεων</button>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

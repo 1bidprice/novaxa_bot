@@ -1,922 +1,909 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
-Enhanced NOVAXA Telegram Bot
-A professional bot for stock alerts, project monitoring, and automated notifications
+Enhanced Telegram Bot
+--------------------
+A comprehensive Telegram bot implementation with advanced features
+and integration capabilities.
+
+This module serves as the main entry point for the Telegram bot,
+handling command processing, message routing, and user interactions.
 """
 
 import os
+import sys
 import logging
-import time
 import json
-from datetime import datetime, timedelta
+import time
+import asyncio
 import threading
-import schedule
-import requests
-from flask import Flask, request
-import telebot
-from telebot import types
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Union, Any, Callable
+
+# Third-party imports
+import telegram
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters,
+    ConversationHandler,
+)
+
+# Local imports
+from api import TelegramAPI, DataProcessor
+from integration import ServiceIntegration, NotificationSystem
+from monitor import SystemMonitor, PerformanceTracker
 
 # Configure logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
-    filename='novaxa_bot.log'
 )
 logger = logging.getLogger(__name__)
 
-# Bot token
-TOKEN = "7658672268:AAEHvAKeT9LT5jhkwL2ygMpt1SMzztnSZOM"
+# Bot states for conversation handler
+MAIN_MENU, SETTINGS, PROCESSING, CONFIRMATION = range(4)
 
-# Initialize Flask app for webhook (if needed)
-app = Flask(__name__)
-
-# Initialize bot
-bot = telebot.TeleBot(TOKEN)
-
-# Store user data
-user_data = {}
-
-# Project status tracking
-projects = {
-    "bidprice": {
-        "name": "BidPrice",
-        "status": "Active",
-        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "description": "Πλατφόρμα δημοπρασιών προϊόντων",
-        "logs": ["Σύστημα αρχικοποιήθηκε", "Όλες οι υπηρεσίες λειτουργούν"],
-        "metrics": {
-            "active_listings": 24,
-            "new_bids": 12,
-            "progress": 75
-        }
-    },
-    "amesis": {
-        "name": "Amesis",
-        "status": "In Development",
-        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "description": "Εφαρμογή αποστολής άμεσων pop-up μηνυμάτων",
-        "logs": ["Ολοκληρώθηκε η μετάβαση της βάσης δεδομένων", "Ρυθμίστηκαν τα API endpoints"],
-        "metrics": {
-            "messages_sent": 156,
-            "recipients": 42,
-            "progress": 60
-        }
-    },
-    "6225": {
-        "name": "Project6225",
-        "status": "Planning",
-        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "description": "Πρόγραμμα e-commerce arbitrage + Print-on-Demand",
-        "logs": ["Αρχική φάση σχεδιασμού", "Συλλογή απαιτήσεων"],
-        "metrics": {
-            "products": 18,
-            "sales": 7,
-            "progress": 30
-        }
-    }
-}
-
-# Stock monitoring
-class StockMonitor:
-    def __init__(self):
-        self.stock_data = {}
-        self.alert_thresholds = {}
-        # Default Greek stocks as specified by the user
-        self.default_stocks = {
-            "OPAP.AT": {"name": "ΟΠΑΠ", "threshold": 18.50},
-            "MYTIL.AT": {"name": "METLEN", "threshold": 42.44}
-        }
-        
-    def add_stock(self, symbol, name, threshold=None):
-        """Add a stock to monitor with optional price threshold for alerts"""
-        self.default_stocks[symbol] = {"name": name, "threshold": threshold}
-        logger.info(f"Added stock {name} ({symbol}) to monitoring list")
-        
-    def remove_stock(self, symbol):
-        """Remove a stock from monitoring"""
-        if symbol in self.default_stocks:
-            stock_name = self.default_stocks[symbol]["name"]
-            del self.default_stocks[symbol]
-            logger.info(f"Removed stock {stock_name} ({symbol}) from monitoring list")
-            return True
-        return False
+class EnhancedBot:
+    """
+    Enhanced Telegram Bot with advanced features and integrations.
     
-    def set_alert_threshold(self, symbol, threshold):
-        """Set price threshold for alerts"""
-        if symbol in self.default_stocks:
-            self.default_stocks[symbol]["threshold"] = threshold
-            logger.info(f"Set alert threshold for {symbol} to {threshold}")
-            return True
-        return False
+    This class implements a feature-rich Telegram bot with support for:
+    - Multi-language support
+    - User session management
+    - Service integrations
+    - Automated notifications
+    - Performance monitoring
+    - Advanced command processing
+    """
     
-    def get_stock_data(self, symbol):
-        """Fetch current stock data from Yahoo Finance API"""
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-            params = {
-                "region": "US",
-                "lang": "en-US",
-                "includePrePost": "false",
-                "interval": "1d",
-                "range": "1d",
-                "corsDomain": "finance.yahoo.com",
-                ".tsrc": "finance"
-            }
-            
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
-            
-            response = requests.get(url, params=params, headers=headers)
-            data = response.json()
-            
-            # Check if we have valid data
-            if "chart" in data and "result" in data["chart"] and data["chart"]["result"]:
-                result = data["chart"]["result"][0]
-                meta = result["meta"]
-                
-                # Get the latest price
-                latest_price = meta.get("regularMarketPrice", 0)
-                previous_close = meta.get("chartPreviousClose", 0)
-                currency = meta.get("currency", "EUR")
-                
-                # Calculate change
-                change = latest_price - previous_close
-                change_percent = (change / previous_close) * 100 if previous_close else 0
-                
-                stock_info = {
-                    "symbol": symbol,
-                    "name": self.default_stocks.get(symbol, {}).get("name", symbol),
-                    "price": latest_price,
-                    "previous_close": previous_close,
-                    "change": change,
-                    "change_percent": change_percent,
-                    "currency": currency,
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                
-                # Update stored data
-                self.stock_data[symbol] = stock_info
-                
-                return stock_info
-            else:
-                logger.error(f"Invalid data format received for {symbol}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error fetching stock data for {symbol}: {str(e)}")
-            return None
-    
-    def check_alerts(self, symbol=None):
+    def __init__(self, token: str, admin_ids: List[int] = None):
         """
-        Check if any stocks have crossed their alert thresholds
-        Returns a list of alert messages
+        Initialize the Enhanced Telegram Bot.
+        
+        Args:
+            token: Telegram Bot API token
+            admin_ids: List of Telegram user IDs with admin privileges
         """
-        alerts = []
-        symbols_to_check = [symbol] if symbol else self.default_stocks.keys()
+        self.token = token
+        self.admin_ids = admin_ids or []
+        self.api = TelegramAPI(token)
+        self.integration = ServiceIntegration()
+        self.notification = NotificationSystem()
+        self.monitor = SystemMonitor()
+        self.performance = PerformanceTracker()
+        self.data_processor = DataProcessor()
         
-        for sym in symbols_to_check:
-            if sym not in self.default_stocks:
-                continue
-                
-            threshold = self.default_stocks[sym].get("threshold")
-            if not threshold:
-                continue
-                
-            # Get fresh data
-            stock_info = self.get_stock_data(sym)
-            if not stock_info:
-                continue
-                
-            current_price = stock_info["price"]
-            stock_name = stock_info["name"]
-            
-            # Check if price crossed threshold (either above or below)
-            if abs(current_price - threshold) / threshold <= 0.05:  # Within 5% of threshold
-                direction = "πάνω από" if current_price >= threshold else "κάτω από"
-                alert_msg = f"🚨 ΕΙΔΟΠΟΙΗΣΗ: Η μετοχή {stock_name} ({sym}) είναι {direction} το όριο των {threshold}€! Τρέχουσα τιμή: {current_price:.2f}€"
-                alerts.append(alert_msg)
-                
-        return alerts
-    
-    def get_stock_summary(self, symbol=None):
-        """
-        Generate a summary of stock data
-        If symbol is provided, returns data for that stock only
-        Otherwise returns data for all monitored stocks
-        """
-        if symbol and symbol in self.default_stocks:
-            stock_info = self.get_stock_data(symbol)
-            if stock_info:
-                return self._format_stock_message(stock_info)
-            return f"Δεν βρέθηκαν δεδομένα για τη μετοχή {symbol}"
-            
-        # Get data for all stocks
-        summary = "📊 *Σύνοψη Μετοχών* 📊\n\n"
-        for sym in self.default_stocks.keys():
-            stock_info = self.get_stock_data(sym)
-            if stock_info:
-                summary += self._format_stock_message(stock_info) + "\n\n"
-                
-        return summary.strip()
-    
-    def _format_stock_message(self, stock_info):
-        """Format stock data as a readable message"""
-        symbol = stock_info["symbol"]
-        name = stock_info["name"]
-        price = stock_info["price"]
-        change = stock_info["change"]
-        change_percent = stock_info["change_percent"]
-        currency = stock_info["currency"]
-        timestamp = stock_info["timestamp"]
+        # User session storage
+        self.user_sessions = {}
+        self.user_settings = {}
+        self.active_conversations = {}
         
-        # Determine emoji based on price change
-        emoji = "🔴" if change < 0 else "🟢" if change > 0 else "⚪️"
+        # Initialize the application
+        self.application = Application.builder().token(token).build()
+        self._setup_handlers()
         
-        message = f"{emoji} *{name}* ({symbol})\n"
-        message += f"Τιμή: {price:.2f} {currency}\n"
-        message += f"Μεταβολή: {change:+.2f} ({change_percent:+.2f}%)\n"
-        message += f"Τελευταία ενημέρωση: {timestamp}"
+        logger.info("Enhanced Telegram Bot initialized successfully")
+    
+    def _setup_handlers(self):
+        """Set up command and message handlers for the bot."""
+        # Command handlers
+        self.application.add_handler(CommandHandler("start", self.start_command))
+        self.application.add_handler(CommandHandler("help", self.help_command))
+        self.application.add_handler(CommandHandler("settings", self.settings_command))
+        self.application.add_handler(CommandHandler("status", self.status_command))
         
-        return message
-
-# Initialize stock monitor
-stock_monitor = StockMonitor()
-
-# Command handlers
-@bot.message_handler(commands=['start'])
-def start_command(message):
-    """Send welcome message when the command /start is issued."""
-    user = message.from_user
-    user_id = message.from_user.id
-    
-    # Store user data
-    if user_id not in user_data:
-        user_data[user_id] = {
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "username": user.username,
-            "chat_id": message.chat.id,
-            "joined_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    
-    welcome_text = (
-        f"Γεια σου {user.first_name}! Είμαι το NOVAXA bot.\n\n"
-        f"Μπορώ να σε βοηθήσω με:\n"
-        f"• Παρακολούθηση μετοχών και ειδοποιήσεις\n"
-        f"• Διαχείριση των projects σου\n"
-        f"• Αυτοματοποιημένες ειδοποιήσεις\n\n"
-        f"Χρησιμοποίησε /help για να δεις όλες τις διαθέσιμες εντολές."
-    )
-    
-    bot.reply_to(message, welcome_text)
-
-@bot.message_handler(commands=['help'])
-def help_command(message):
-    """Send a message when the command /help is issued."""
-    help_text = (
-        "*Διαθέσιμες Εντολές:*\n\n"
-        "*Γενικές Εντολές:*\n"
-        "/start - Ξεκίνημα του bot\n"
-        "/help - Εμφάνιση αυτού του μηνύματος βοήθειας\n"
-        "/getid - Εμφάνιση του ID σου\n"
-        "/status - Γενική κατάσταση συστήματος\n\n"
+        # Admin-only commands
+        self.application.add_handler(CommandHandler("admin", self.admin_command))
+        self.application.add_handler(CommandHandler("broadcast", self.broadcast_command))
+        self.application.add_handler(CommandHandler("stats", self.stats_command))
         
-        "*Μετοχές:*\n"
-        "/stocks - Εμφάνιση όλων των μετοχών\n"
-        "/stock [σύμβολο] - Εμφάνιση συγκεκριμένης μετοχής\n"
-        "/alert [σύμβολο] [τιμή] - Ορισμός ειδοποίησης για μετοχή\n\n"
+        # Callback query handler
+        self.application.add_handler(CallbackQueryHandler(self.button_callback))
         
-        "*Projects:*\n"
-        "/projects - Εμφάνιση όλων των projects\n"
-        "/bidprice - Κατάσταση του BidPrice\n"
-        "/amesis - Κατάσταση του Amesis\n"
-        "/6225 - Κατάσταση του Project6225\n"
-        "/logs [project] - Εμφάνιση logs για συγκεκριμένο project\n"
-        "/progress - Καθημερινή αναφορά προόδου\n\n"
-        
-        "*Ειδοποιήσεις:*\n"
-        "/broadcast [μήνυμα] - Αποστολή μαζικού μηνύματος\n"
-        "/notify [μήνυμα] - Ορισμός ειδοποίησης\n"
-        "/trending - Εμφάνιση τάσεων για Project6225\n"
-        "/mystats - Εμφάνιση στατιστικών για όλα τα projects\n"
-    )
-    
-    bot.send_message(message.chat.id, help_text, parse_mode='Markdown')
-
-@bot.message_handler(commands=['getid'])
-def getid_command(message):
-    """Send user their Telegram ID."""
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-    
-    bot.reply_to(message, f"Το Telegram ID σου είναι: {user_id}\nΤο Chat ID είναι: {chat_id}")
-
-@bot.message_handler(commands=['status'])
-def status_command(message):
-    """Send system status information."""
-    uptime = get_uptime()
-    
-    status_text = (
-        f"*Κατάσταση Συστήματος NOVAXA*\n\n"
-        f"🟢 *Bot:* Λειτουργεί κανονικά\n"
-        f"⏱ *Uptime:* {uptime}\n"
-        f"📊 *Μετοχές:* {len(stock_monitor.default_stocks)} υπό παρακολούθηση\n"
-        f"📋 *Projects:* {len(projects)} ενεργά\n"
-        f"👥 *Χρήστες:* {len(user_data)} συνδεδεμένοι\n\n"
-        f"Τελευταία ενημέρωση: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    )
-    
-    bot.send_message(message.chat.id, status_text, parse_mode='Markdown')
-
-# Stock related commands
-@bot.message_handler(commands=['stocks'])
-def stocks_command(message):
-    """Display summary of all monitored stocks"""
-    bot.send_message(message.chat.id, "Λαμβάνω δεδομένα μετοχών...")
-    summary = stock_monitor.get_stock_summary()
-    bot.send_message(message.chat.id, summary, parse_mode='Markdown')
-
-@bot.message_handler(commands=['stock'])
-def stock_command(message):
-    """Display information for a specific stock"""
-    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
-    
-    if not args:
-        bot.reply_to(
-            message,
-            "Παρακαλώ δώστε το σύμβολο της μετοχής. Παράδειγμα: /stock OPAP.AT"
+        # Conversation handler for multi-step interactions
+        conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("process", self.process_command)],
+            states={
+                MAIN_MENU: [
+                    CallbackQueryHandler(self.menu_selection, pattern="^menu_"),
+                ],
+                SETTINGS: [
+                    CallbackQueryHandler(self.settings_selection, pattern="^setting_"),
+                ],
+                PROCESSING: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.process_input),
+                ],
+                CONFIRMATION: [
+                    CallbackQueryHandler(self.confirm_action, pattern="^confirm_"),
+                ],
+            },
+            fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
         )
-        return
+        self.application.add_handler(conv_handler)
         
-    symbol = args[0].upper()
-    bot.send_message(message.chat.id, f"Λαμβάνω δεδομένα για τη μετοχή {symbol}...")
-    
-    stock_info = stock_monitor.get_stock_summary(symbol)
-    bot.send_message(message.chat.id, stock_info, parse_mode='Markdown')
-
-@bot.message_handler(commands=['alert'])
-def alert_command(message):
-    """Set price alert for a stock"""
-    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
-    
-    if len(args) < 2:
-        bot.reply_to(
-            message,
-            "Παρακαλώ δώστε το σύμβολο της μετοχής και την τιμή-στόχο. "
-            "Παράδειγμα: /alert OPAP.AT 18.50"
+        # Default message handler
+        self.application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
         )
-        return
         
-    symbol = args[0].upper()
-    try:
-        threshold = float(args[1])
-    except ValueError:
-        bot.reply_to(message, "Η τιμή-στόχος πρέπει να είναι αριθμός.")
-        return
+        # Error handler
+        self.application.add_error_handler(self.error_handler)
+    
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /start command."""
+        user = update.effective_user
+        logger.info(f"User {user.id} started the bot")
         
-    # Check if the stock exists in our monitor
-    if symbol not in stock_monitor.default_stocks:
-        # Try to add it
-        stock_info = stock_monitor.get_stock_data(symbol)
-        if not stock_info:
-            bot.reply_to(
-                message,
-                f"Δεν βρέθηκε η μετοχή με σύμβολο {symbol}. "
-                f"Βεβαιωθείτε ότι χρησιμοποιείτε το σωστό σύμβολο."
+        # Initialize user session if not exists
+        if user.id not in self.user_sessions:
+            self.user_sessions[user.id] = {
+                "start_time": datetime.now(),
+                "language": "en",
+                "interactions": 0,
+            }
+        
+        # Increment interaction count
+        self.user_sessions[user.id]["interactions"] += 1
+        
+        # Create welcome message with inline keyboard
+        keyboard = [
+            [
+                InlineKeyboardButton("Help", callback_data="menu_help"),
+                InlineKeyboardButton("Settings", callback_data="menu_settings"),
+            ],
+            [
+                InlineKeyboardButton("Features", callback_data="menu_features"),
+                InlineKeyboardButton("About", callback_data="menu_about"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_html(
+            f"Hello, <b>{user.first_name}</b>! Welcome to the Enhanced Telegram Bot.\n\n"
+            f"This bot provides advanced features and integrations.\n"
+            f"Use /help to see available commands or select an option below:",
+            reply_markup=reply_markup,
+        )
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, "start_command")
+        
+        return MAIN_MENU
+    
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /help command."""
+        user = update.effective_user
+        logger.info(f"User {user.id} requested help")
+        
+        help_text = (
+            "Available commands:\n\n"
+            "/start - Start the bot and see welcome message\n"
+            "/help - Show this help message\n"
+            "/settings - Configure your preferences\n"
+            "/status - Check bot status and performance\n"
+            "/process - Start a multi-step process\n\n"
+            "Admin commands:\n"
+            "/admin - Access admin panel\n"
+            "/broadcast - Send message to all users\n"
+            "/stats - View usage statistics"
+        )
+        
+        await update.message.reply_text(help_text)
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, "help_command")
+    
+    async def settings_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /settings command."""
+        user = update.effective_user
+        logger.info(f"User {user.id} accessed settings")
+        
+        # Initialize user settings if not exists
+        if user.id not in self.user_settings:
+            self.user_settings[user.id] = {
+                "language": "en",
+                "notifications": True,
+                "data_sharing": False,
+                "theme": "light",
+            }
+        
+        settings = self.user_settings[user.id]
+        
+        # Create settings menu with inline keyboard
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"Language: {settings['language'].upper()}", 
+                    callback_data="setting_language"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"Notifications: {'ON' if settings['notifications'] else 'OFF'}", 
+                    callback_data="setting_notifications"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"Data Sharing: {'ON' if settings['data_sharing'] else 'OFF'}", 
+                    callback_data="setting_data_sharing"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"Theme: {settings['theme'].capitalize()}", 
+                    callback_data="setting_theme"
+                ),
+            ],
+            [
+                InlineKeyboardButton("Save Settings", callback_data="setting_save"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "Settings Configuration\n\n"
+            "Customize your bot experience by adjusting the settings below:",
+            reply_markup=reply_markup,
+        )
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, "settings_command")
+        
+        return SETTINGS
+    
+    async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /status command."""
+        user = update.effective_user
+        logger.info(f"User {user.id} requested status")
+        
+        # Get system status and performance metrics
+        status = self.monitor.get_system_status()
+        performance = self.performance.get_metrics()
+        
+        status_text = (
+            "Bot Status and Performance\n\n"
+            f"Status: {status['status']}\n"
+            f"Uptime: {status['uptime']}\n"
+            f"Active Users: {status['active_users']}\n"
+            f"Response Time: {performance['response_time']}ms\n"
+            f"Memory Usage: {performance['memory_usage']}MB\n"
+            f"CPU Usage: {performance['cpu_usage']}%\n\n"
+            f"Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
+        await update.message.reply_text(status_text)
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, "status_command")
+    
+    async def admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /admin command (admin-only)."""
+        user = update.effective_user
+        logger.info(f"User {user.id} attempted to access admin panel")
+        
+        # Check if user has admin privileges
+        if user.id not in self.admin_ids:
+            await update.message.reply_text(
+                "You don't have permission to access the admin panel."
             )
             return
-        stock_monitor.add_stock(symbol, stock_info["name"])
-    
-    # Set the alert threshold
-    success = stock_monitor.set_alert_threshold(symbol, threshold)
-    if success:
-        bot.reply_to(
-            message,
-            f"Η ειδοποίηση για τη μετοχή {symbol} ορίστηκε στα {threshold}€."
+        
+        # Create admin panel with inline keyboard
+        keyboard = [
+            [
+                InlineKeyboardButton("User Management", callback_data="admin_users"),
+                InlineKeyboardButton("System Settings", callback_data="admin_system"),
+            ],
+            [
+                InlineKeyboardButton("Logs", callback_data="admin_logs"),
+                InlineKeyboardButton("Maintenance", callback_data="admin_maintenance"),
+            ],
+            [
+                InlineKeyboardButton("Broadcast Message", callback_data="admin_broadcast"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "Admin Panel\n\n"
+            "Welcome to the admin panel. Select an option to proceed:",
+            reply_markup=reply_markup,
         )
-    else:
-        bot.reply_to(
-            message,
-            f"Σφάλμα κατά τον ορισμό της ειδοποίησης για τη μετοχή {symbol}."
+        
+        # Log admin activity
+        self.monitor.log_activity(user.id, "admin_command", is_admin=True)
+    
+    async def broadcast_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /broadcast command (admin-only)."""
+        user = update.effective_user
+        logger.info(f"User {user.id} attempted to use broadcast command")
+        
+        # Check if user has admin privileges
+        if user.id not in self.admin_ids:
+            await update.message.reply_text(
+                "You don't have permission to use the broadcast command."
+            )
+            return
+        
+        # Check if message text is provided
+        if not context.args:
+            await update.message.reply_text(
+                "Please provide a message to broadcast.\n"
+                "Usage: /broadcast <message>"
+            )
+            return
+        
+        # Get broadcast message
+        broadcast_message = " ".join(context.args)
+        
+        # Create confirmation keyboard
+        keyboard = [
+            [
+                InlineKeyboardButton("Confirm", callback_data="confirm_broadcast"),
+                InlineKeyboardButton("Cancel", callback_data="confirm_cancel"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Store broadcast message in context
+        context.user_data["broadcast_message"] = broadcast_message
+        
+        await update.message.reply_text(
+            f"You are about to broadcast the following message to all users:\n\n"
+            f"{broadcast_message}\n\n"
+            f"Please confirm or cancel:",
+            reply_markup=reply_markup,
         )
-
-# Project related commands
-@bot.message_handler(commands=['projects'])
-def projects_command(message):
-    """Display summary of all projects"""
-    message_text = "📋 *Κατάσταση Projects* 📋\n\n"
-    
-    for project_id, project_data in projects.items():
-        status_emoji = "🟢" if project_data["status"] == "Active" else "🟡" if project_data["status"] == "In Development" else "🔵"
-        message_text += f"{status_emoji} *{project_data['name']}*\n"
-        message_text += f"Κατάσταση: {project_data['status']}\n"
-        message_text += f"Τελευταία ενημέρωση: {project_data['last_update']}\n"
-        message_text += f"Περιγραφή: {project_data['description']}\n"
-        message_text += f"Πρόοδος: {project_data['metrics']['progress']}%\n\n"
-    
-    # Create inline keyboard
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    btn_bidprice = types.InlineKeyboardButton("BidPrice", callback_data="project_bidprice")
-    btn_amesis = types.InlineKeyboardButton("Amesis", callback_data="project_amesis")
-    btn_6225 = types.InlineKeyboardButton("Project6225", callback_data="project_6225")
-    markup.add(btn_bidprice, btn_amesis, btn_6225)
-    
-    bot.send_message(message.chat.id, message_text, reply_markup=markup, parse_mode='Markdown')
-
-@bot.message_handler(commands=['bidprice'])
-def bidprice_command(message):
-    """Display BidPrice project status"""
-    send_project_status(message, "bidprice")
-
-@bot.message_handler(commands=['amesis'])
-def amesis_command(message):
-    """Display Amesis project status"""
-    send_project_status(message, "amesis")
-
-@bot.message_handler(commands=['6225'])
-def project6225_command(message):
-    """Display Project6225 status"""
-    send_project_status(message, "6225")
-
-def send_project_status(message, project_id):
-    """Helper function to send project status"""
-    if project_id not in projects:
-        bot.reply_to(message, f"Το project {project_id} δεν βρέθηκε.")
-        return
         
-    project_data = projects[project_id]
-    metrics = project_data["metrics"]
+        # Log admin activity
+        self.monitor.log_activity(user.id, "broadcast_command", is_admin=True)
+        
+        return CONFIRMATION
     
-    message_text = f"📊 *{project_data['name']}* 📊\n\n"
-    message_text += f"*Κατάσταση:* {project_data['status']}\n"
-    message_text += f"*Τελευταία ενημέρωση:* {project_data['last_update']}\n"
-    message_text += f"*Περιγραφή:* {project_data['description']}\n\n"
-    
-    # Add project-specific metrics
-    message_text += "*Μετρήσεις:*\n"
-    if project_id == "bidprice":
-        message_text += f"• Ενεργές αγγελίες: {metrics['active_listings']}\n"
-        message_text += f"• Νέες προσφορές: {metrics['new_bids']}\n"
-    elif project_id == "amesis":
-        message_text += f"• Μηνύματα που στάλθηκαν: {metrics['messages_sent']}\n"
-        message_text += f"• Παραλήπτες: {metrics['recipients']}\n"
-    elif project_id == "6225":
-        message_text += f"• Προϊόντα: {metrics['products']}\n"
-        message_text += f"• Πωλήσεις: {metrics['sales']}\n"
-    
-    message_text += f"• Πρόοδος: {metrics['progress']}%\n\n"
-    
-    message_text += f"*Τελευταία logs:*\n"
-    # Add the last 3 logs
-    for log in project_data['logs'][-3:]:
-        message_text += f"• {log}\n"
-    
-    # Create inline keyboard
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_logs = types.InlineKeyboardButton("Πλήρη Logs", callback_data=f"logs_{project_id}")
-    btn_back = types.InlineKeyboardButton("Επιστροφή στα Projects", callback_data="back_to_projects")
-    markup.add(btn_logs, btn_back)
-    
-    bot.send_message(message.chat.id, message_text, reply_markup=markup, parse_mode='Markdown')
-
-@bot.message_handler(commands=['logs'])
-def logs_command(message):
-    """Display logs for a specific project"""
-    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
-    
-    if not args:
-        bot.reply_to(
-            message,
-            "Παρακαλώ δώστε το όνομα του project. Παράδειγμα: /logs bidprice"
+    async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /stats command (admin-only)."""
+        user = update.effective_user
+        logger.info(f"User {user.id} attempted to view stats")
+        
+        # Check if user has admin privileges
+        if user.id not in self.admin_ids:
+            await update.message.reply_text(
+                "You don't have permission to view statistics."
+            )
+            return
+        
+        # Get usage statistics
+        stats = self.monitor.get_usage_statistics()
+        
+        stats_text = (
+            "Usage Statistics\n\n"
+            f"Total Users: {stats['total_users']}\n"
+            f"Active Users (24h): {stats['active_users_24h']}\n"
+            f"New Users (7d): {stats['new_users_7d']}\n"
+            f"Total Commands: {stats['total_commands']}\n"
+            f"Popular Commands: {', '.join(stats['popular_commands'])}\n\n"
+            f"Average Response Time: {stats['avg_response_time']}ms\n"
+            f"Peak Usage Time: {stats['peak_usage_time']}\n\n"
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
-        return
         
-    project_id = args[0].lower()
-    if project_id in projects:
-        send_project_logs(message, project_id)
-    else:
-        bot.reply_to(
-            message,
-            f"Το project {project_id} δεν βρέθηκε. Διαθέσιμα projects: bidprice, amesis, 6225"
+        await update.message.reply_text(stats_text)
+        
+        # Log admin activity
+        self.monitor.log_activity(user.id, "stats_command", is_admin=True)
+    
+    async def process_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /process command to start a multi-step process."""
+        user = update.effective_user
+        logger.info(f"User {user.id} started a process")
+        
+        # Initialize process data
+        context.user_data["process"] = {
+            "step": 1,
+            "data": {},
+            "start_time": datetime.now(),
+        }
+        
+        # Create process menu with inline keyboard
+        keyboard = [
+            [
+                InlineKeyboardButton("Option 1", callback_data="menu_option1"),
+                InlineKeyboardButton("Option 2", callback_data="menu_option2"),
+            ],
+            [
+                InlineKeyboardButton("Option 3", callback_data="menu_option3"),
+                InlineKeyboardButton("Option 4", callback_data="menu_option4"),
+            ],
+            [
+                InlineKeyboardButton("Cancel", callback_data="menu_cancel"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "Process Started\n\n"
+            "This is a multi-step process. Please select an option to continue:",
+            reply_markup=reply_markup,
         )
-
-def send_project_logs(message, project_id):
-    """Helper function to send project logs"""
-    project_data = projects[project_id]
-    
-    message_text = f"📝 *Logs για {project_data['name']}* 📝\n\n"
-    
-    # Add all logs
-    for i, log in enumerate(project_data['logs'], 1):
-        message_text += f"{i}. {log}\n"
-    
-    # Create inline keyboard
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_back_project = types.InlineKeyboardButton(f"Επιστροφή στο {project_data['name']}", callback_data=f"project_{project_id}")
-    btn_back_projects = types.InlineKeyboardButton("Επιστροφή στα Projects", callback_data="back_to_projects")
-    markup.add(btn_back_project, btn_back_projects)
-    
-    bot.send_message(message.chat.id, message_text, reply_markup=markup, parse_mode='Markdown')
-
-@bot.message_handler(commands=['progress'])
-def progress_command(message):
-    """Display daily progress report for all projects"""
-    message_text = "📈 *Καθημερινή Αναφορά Προόδου* 📈\n\n"
-    message_text += f"*Ημερομηνία:* {datetime.now().strftime('%Y-%m-%d')}\n\n"
-    
-    # Add stock summary
-    message_text += "*Μετοχές:*\n"
-    for symbol, stock_data in stock_monitor.default_stocks.items():
-        stock_info = stock_monitor.get_stock_data(symbol)
-        if stock_info:
-            change_emoji = "🔴" if stock_info["change"] < 0 else "🟢" if stock_info["change"] > 0 else "⚪️"
-            message_text += f"{change_emoji} {stock_data['name']}: {stock_info['price']:.2f}€ ({stock_info['change']:+.2f}€)\n"
-    
-    message_text += "\n*Projects:*\n"
-    
-    # Add project progress
-    for project_id, project_data in projects.items():
-        status_emoji = "🟢" if project_data["status"] == "Active" else "🟡" if project_data["status"] == "In Development" else "🔵"
-        message_text += f"{status_emoji} *{project_data['name']}*\n"
-        message_text += f"  Πρόοδος: {project_data['metrics']['progress']}%\n"
         
-        # Add project-specific metrics
-        if project_id == "bidprice":
-            message_text += f"  Ενεργές αγγελίες: {project_data['metrics']['active_listings']}\n"
-            message_text += f"  Νέες προσφορές: {project_data['metrics']['new_bids']}\n"
-        elif project_id == "amesis":
-            message_text += f"  Μηνύματα: {project_data['metrics']['messages_sent']}\n"
-            message_text += f"  Παραλήπτες: {project_data['metrics']['recipients']}\n"
-        elif project_id == "6225":
-            message_text += f"  Προϊόντα: {project_data['metrics']['products']}\n"
-            message_text += f"  Πωλήσεις: {project_data['metrics']['sales']}\n"
+        # Log user activity
+        self.monitor.log_activity(user.id, "process_command")
         
-        message_text += f"  Τελευταία ενέργεια: {project_data['logs'][-1]}\n\n"
+        return MAIN_MENU
     
-    bot.send_message(message.chat.id, message_text, parse_mode='Markdown')
-
-@bot.message_handler(commands=['trending'])
-def trending_command(message):
-    """Display trending products for Project6225"""
-    trending_products = [
-        {"name": "Custom T-Shirt Design #1", "sales": 12, "growth": "+25%"},
-        {"name": "Phone Case Model X", "sales": 8, "growth": "+15%"},
-        {"name": "Personalized Mug", "sales": 6, "growth": "+10%"}
-    ]
-    
-    message_text = "📊 *Trending Products - Project6225* 📊\n\n"
-    
-    for i, product in enumerate(trending_products, 1):
-        message_text += f"{i}. *{product['name']}*\n"
-        message_text += f"   Πωλήσεις: {product['sales']}\n"
-        message_text += f"   Ανάπτυξη: {product['growth']}\n\n"
-    
-    message_text += "*Προτεινόμενες Ενέργειες:*\n"
-    message_text += "• Αύξηση διαφημιστικού προϋπολογισμού για το #1\n"
-    message_text += "• Δημιουργία παρόμοιων προϊόντων με το #2\n"
-    message_text += "• Προσφορά έκπτωσης για το #3\n"
-    
-    bot.send_message(message.chat.id, message_text, parse_mode='Markdown')
-
-@bot.message_handler(commands=['mystats'])
-def mystats_command(message):
-    """Display statistics for all projects"""
-    message_text = "📊 *Στατιστικά Projects* 📊\n\n"
-    
-    # BidPrice stats
-    message_text += "*BidPrice:*\n"
-    message_text += f"• Ενεργές αγγελίες: {projects['bidprice']['metrics']['active_listings']}\n"
-    message_text += f"• Νέες προσφορές: {projects['bidprice']['metrics']['new_bids']}\n"
-    message_text += f"• Ποσοστό ολοκλήρωσης: {projects['bidprice']['metrics']['progress']}%\n\n"
-    
-    # Amesis stats
-    message_text += "*Amesis:*\n"
-    message_text += f"• Μηνύματα που στάλθηκαν: {projects['amesis']['metrics']['messages_sent']}\n"
-    message_text += f"• Παραλήπτες: {projects['amesis']['metrics']['recipients']}\n"
-    message_text += f"• Ποσοστό ολοκλήρωσης: {projects['amesis']['metrics']['progress']}%\n\n"
-    
-    # Project6225 stats
-    message_text += "*Project6225:*\n"
-    message_text += f"• Προϊόντα: {projects['6225']['metrics']['products']}\n"
-    message_text += f"• Πωλήσεις: {projects['6225']['metrics']['sales']}\n"
-    message_text += f"• Ποσοστό ολοκλήρωσης: {projects['6225']['metrics']['progress']}%\n\n"
-    
-    message_text += "*Συνολική Πρόοδος:* 55%"
-    
-    bot.send_message(message.chat.id, message_text, parse_mode='Markdown')
-
-# Notification commands
-@bot.message_handler(commands=['broadcast'])
-def broadcast_command(message):
-    """Send a broadcast message to all users (admin only)"""
-    user_id = message.from_user.id
-    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
-    
-    # In a real implementation, you would check if the user is an admin
-    # For now, we'll assume the user is authorized
-    
-    if not args:
-        bot.reply_to(
-            message,
-            "Παρακαλώ δώστε το μήνυμα που θέλετε να στείλετε. "
-            "Παράδειγμα: /broadcast Σημαντική ενημέρωση!"
-        )
-        return
+    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle button callbacks from inline keyboards."""
+        query = update.callback_query
+        await query.answer()
         
-    broadcast_text = " ".join(args)
-    
-    # For now, just echo back the message
-    bot.reply_to(
-        message,
-        f"📣 *Broadcast Message*\n\n{broadcast_text}\n\n"
-        f"Σε κανονική λειτουργία, αυτό το μήνυμα θα στελνόταν σε όλους τους χρήστες.",
-        parse_mode='Markdown'
-    )
-
-@bot.message_handler(commands=['notify'])
-def notify_command(message):
-    """Set a notification"""
-    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
-    
-    if not args:
-        bot.reply_to(
-            message,
-            "Παρακαλώ δώστε το μήνυμα ειδοποίησης. "
-            "Παράδειγμα: /notify Υπενθύμιση για τη συνάντηση"
-        )
-        return
+        user = query.from_user
+        callback_data = query.data
+        logger.info(f"User {user.id} pressed button: {callback_data}")
         
-    notification_text = " ".join(args)
+        # Handle different callback types
+        if callback_data.startswith("menu_"):
+            return await self.menu_selection(update, context)
+        elif callback_data.startswith("setting_"):
+            return await self.settings_selection(update, context)
+        elif callback_data.startswith("admin_"):
+            return await self.admin_selection(update, context)
+        elif callback_data.startswith("confirm_"):
+            return await self.confirm_action(update, context)
+        else:
+            await query.edit_message_text(
+                f"Unknown callback: {callback_data}\n"
+                f"Please try again or contact support."
+            )
     
-    # In a real implementation, you would store the notification
-    # For now, just echo back the message
-    bot.reply_to(
-        message,
-        f"🔔 *Ειδοποίηση Ρυθμίστηκε*\n\n"
-        f"{notification_text}\n\n"
-        f"Θα λάβετε αυτή την ειδοποίηση στο μέλλον.",
-        parse_mode='Markdown'
-    )
-
-# Callback query handler
-@bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    """Handle callback queries from inline keyboards"""
-    if call.data.startswith("project_"):
-        project_id = call.data.split("_")[1]
-        send_project_status_callback(call, project_id)
-    elif call.data.startswith("logs_"):
-        project_id = call.data.split("_")[1]
-        send_project_logs_callback(call, project_id)
-    elif call.data == "back_to_projects":
-        send_projects_callback(call)
-
-def send_project_status_callback(call, project_id):
-    """Send project status for callback queries"""
-    if project_id not in projects:
-        bot.answer_callback_query(call.id, text=f"Το project {project_id} δεν βρέθηκε.")
-        return
+    async def menu_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle menu selection callbacks."""
+        query = update.callback_query
+        user = query.from_user
+        callback_data = query.data
         
-    project_data = projects[project_id]
-    metrics = project_data["metrics"]
-    
-    message_text = f"📊 *{project_data['name']}* 📊\n\n"
-    message_text += f"*Κατάσταση:* {project_data['status']}\n"
-    message_text += f"*Τελευταία ενημέρωση:* {project_data['last_update']}\n"
-    message_text += f"*Περιγραφή:* {project_data['description']}\n\n"
-    
-    # Add project-specific metrics
-    message_text += "*Μετρήσεις:*\n"
-    if project_id == "bidprice":
-        message_text += f"• Ενεργές αγγελίες: {metrics['active_listings']}\n"
-        message_text += f"• Νέες προσφορές: {metrics['new_bids']}\n"
-    elif project_id == "amesis":
-        message_text += f"• Μηνύματα που στάλθηκαν: {metrics['messages_sent']}\n"
-        message_text += f"• Παραλήπτες: {metrics['recipients']}\n"
-    elif project_id == "6225":
-        message_text += f"• Προϊόντα: {metrics['products']}\n"
-        message_text += f"• Πωλήσεις: {metrics['sales']}\n"
-    
-    message_text += f"• Πρόοδος: {metrics['progress']}%\n\n"
-    
-    message_text += f"*Τελευταία logs:*\n"
-    # Add the last 3 logs
-    for log in project_data['logs'][-3:]:
-        message_text += f"• {log}\n"
-    
-    # Create inline keyboard
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_logs = types.InlineKeyboardButton("Πλήρη Logs", callback_data=f"logs_{project_id}")
-    btn_back = types.InlineKeyboardButton("Επιστροφή στα Projects", callback_data="back_to_projects")
-    markup.add(btn_logs, btn_back)
-    
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=message_text,
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
-    
-    bot.answer_callback_query(call.id)
-
-def send_project_logs_callback(call, project_id):
-    """Send project logs for callback queries"""
-    project_data = projects[project_id]
-    
-    message_text = f"📝 *Logs για {project_data['name']}* 📝\n\n"
-    
-    # Add all logs
-    for i, log in enumerate(project_data['logs'], 1):
-        message_text += f"{i}. {log}\n"
-    
-    # Create inline keyboard
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_back_project = types.InlineKeyboardButton(f"Επιστροφή στο {project_data['name']}", callback_data=f"project_{project_id}")
-    btn_back_projects = types.InlineKeyboardButton("Επιστροφή στα Projects", callback_data="back_to_projects")
-    markup.add(btn_back_project, btn_back_projects)
-    
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=message_text,
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
-    
-    bot.answer_callback_query(call.id)
-
-def send_projects_callback(call):
-    """Send projects overview for callback queries"""
-    message_text = "📋 *Κατάσταση Projects* 📋\n\n"
-    
-    for project_id, project_data in projects.items():
-        status_emoji = "🟢" if project_data["status"] == "Active" else "🟡" if project_data["status"] == "In Development" else "🔵"
-        message_text += f"{status_emoji} *{project_data['name']}*\n"
-        message_text += f"Κατάσταση: {project_data['status']}\n"
-        message_text += f"Τελευταία ενημέρωση: {project_data['last_update']}\n"
-        message_text += f"Περιγραφή: {project_data['description']}\n"
-        message_text += f"Πρόοδος: {project_data['metrics']['progress']}%\n\n"
-    
-    # Create inline keyboard
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    btn_bidprice = types.InlineKeyboardButton("BidPrice", callback_data="project_bidprice")
-    btn_amesis = types.InlineKeyboardButton("Amesis", callback_data="project_amesis")
-    btn_6225 = types.InlineKeyboardButton("Project6225", callback_data="project_6225")
-    markup.add(btn_bidprice, btn_amesis, btn_6225)
-    
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=message_text,
-        reply_markup=markup,
-        parse_mode='Markdown'
-    )
-    
-    bot.answer_callback_query(call.id)
-
-# Helper functions
-def get_uptime():
-    """Get system uptime"""
-    # In a real implementation, you would get the actual uptime
-    # For now, return a placeholder
-    return "3 ημέρες, 7 ώρες, 22 λεπτά"
-
-# Scheduled tasks
-def check_stock_alerts():
-    """Check for stock alerts and send notifications"""
-    alerts = stock_monitor.check_alerts()
-    if alerts:
-        # In a real implementation, you would send these alerts to the user
-        for alert in alerts:
-            logger.info(f"Stock alert: {alert}")
-            # Send to all users
-            for user_id, data in user_data.items():
-                try:
-                    bot.send_message(data["chat_id"], alert, parse_mode='Markdown')
-                except Exception as e:
-                    logger.error(f"Error sending alert to user {user_id}: {str(e)}")
-
-def update_project_data():
-    """Update project data with new information"""
-    # In a real implementation, you would fetch data from external sources
-    # For now, just update the last_update field
-    for project_id in projects:
-        projects[project_id]["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    logger.info("Project data updated")
-
-def send_daily_report():
-    """Send daily progress report to all users"""
-    # In a real implementation, you would generate a comprehensive report
-    # For now, just log that the report would be sent
-    logger.info("Daily report would be sent to all users")
-    
-    # Send to all users
-    for user_id, data in user_data.items():
-        try:
-            # Create a message for the daily report
-            message_text = "📈 *Καθημερινή Αναφορά Προόδου* 📈\n\n"
-            message_text += f"*Ημερομηνία:* {datetime.now().strftime('%Y-%m-%d')}\n\n"
+        # Extract menu option
+        option = callback_data.replace("menu_", "")
+        
+        if option == "help":
+            await query.edit_message_text(
+                "Help Information\n\n"
+                "This bot provides various features and commands:\n"
+                "- Use /start to begin\n"
+                "- Use /help to see available commands\n"
+                "- Use /settings to configure preferences\n"
+                "- Use /status to check bot status\n"
+                "- Use /process to start a multi-step process\n\n"
+                "For more assistance, contact support."
+            )
+        elif option == "settings":
+            # Redirect to settings
+            await query.edit_message_text("Loading settings...")
+            await self.settings_command(update, context)
+            return SETTINGS
+        elif option == "features":
+            await query.edit_message_text(
+                "Bot Features\n\n"
+                "This enhanced Telegram bot includes:\n"
+                "- Multi-language support\n"
+                "- User session management\n"
+                "- Service integrations\n"
+                "- Automated notifications\n"
+                "- Performance monitoring\n"
+                "- Advanced command processing\n"
+                "- Admin controls and statistics\n\n"
+                "Explore these features using the available commands."
+            )
+        elif option == "about":
+            await query.edit_message_text(
+                "About This Bot\n\n"
+                "Enhanced Telegram Bot\n"
+                "Version: 1.0.0\n"
+                "Created by: Your Organization\n\n"
+                "This bot demonstrates advanced Telegram bot capabilities "
+                "with a comprehensive architecture and feature set.\n\n"
+                "© 2025 Your Organization. All rights reserved."
+            )
+        elif option == "cancel":
+            await query.edit_message_text(
+                "Process cancelled. Use /start to begin again."
+            )
+            return ConversationHandler.END
+        elif option in ["option1", "option2", "option3", "option4"]:
+            # Store selected option
+            context.user_data["process"]["option"] = option
+            context.user_data["process"]["step"] = 2
             
-            # Add stock summary
-            message_text += "*Μετοχές:*\n"
-            for symbol, stock_data in stock_monitor.default_stocks.items():
-                stock_info = stock_monitor.get_stock_data(symbol)
-                if stock_info:
-                    change_emoji = "🔴" if stock_info["change"] < 0 else "🟢" if stock_info["change"] > 0 else "⚪️"
-                    message_text += f"{change_emoji} {stock_data['name']}: {stock_info['price']:.2f}€ ({stock_info['change']:+.2f}€)\n"
-            
-            message_text += "\n*Projects:*\n"
-            
-            # Add project progress
-            for project_id, project_data in projects.items():
-                status_emoji = "🟢" if project_data["status"] == "Active" else "🟡" if project_data["status"] == "In Development" else "🔵"
-                message_text += f"{status_emoji} *{project_data['name']}*\n"
-                message_text += f"  Πρόοδος: {project_data['metrics']['progress']}%\n"
-                
-                # Add project-specific metrics
-                if project_id == "bidprice":
-                    message_text += f"  Ενεργές αγγελίες: {project_data['metrics']['active_listings']}\n"
-                    message_text += f"  Νέες προσφορές: {project_data['metrics']['new_bids']}\n"
-                elif project_id == "amesis":
-                    message_text += f"  Μηνύματα: {project_data['metrics']['messages_sent']}\n"
-                    message_text += f"  Παραλήπτες: {project_data['metrics']['recipients']}\n"
-                elif project_id == "6225":
-                    message_text += f"  Προϊόντα: {project_data['metrics']['products']}\n"
-                    message_text += f"  Πωλήσεις: {project_data['metrics']['sales']}\n"
-                
-                message_text += f"  Τελευταία ενέργεια: {project_data['logs'][-1]}\n\n"
-            
-            bot.send_message(data["chat_id"], message_text, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"Error sending daily report to user {user_id}: {str(e)}")
-
-# Background scheduler
-def run_scheduler():
-    """Run the scheduler in the background"""
-    # Check stock alerts every 15 minutes
-    schedule.every(15).minutes.do(check_stock_alerts)
+            await query.edit_message_text(
+                f"You selected Option {option[-1]}.\n\n"
+                f"Please enter additional information for processing:"
+            )
+            return PROCESSING
+        else:
+            await query.edit_message_text(
+                f"Unknown option: {option}\n"
+                f"Please try again or use /start to begin again."
+            )
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, f"menu_selection_{option}")
+        
+        return MAIN_MENU
     
-    # Update project data every hour
-    schedule.every(1).hours.do(update_project_data)
+    async def settings_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle settings selection callbacks."""
+        query = update.callback_query
+        user = query.from_user
+        callback_data = query.data
+        
+        # Initialize user settings if not exists
+        if user.id not in self.user_settings:
+            self.user_settings[user.id] = {
+                "language": "en",
+                "notifications": True,
+                "data_sharing": False,
+                "theme": "light",
+            }
+        
+        settings = self.user_settings[user.id]
+        
+        # Extract setting option
+        option = callback_data.replace("setting_", "")
+        
+        if option == "language":
+            # Toggle language (simplified for demo)
+            languages = ["en", "es", "fr", "de"]
+            current_index = languages.index(settings["language"])
+            next_index = (current_index + 1) % len(languages)
+            settings["language"] = languages[next_index]
+        elif option == "notifications":
+            # Toggle notifications
+            settings["notifications"] = not settings["notifications"]
+        elif option == "data_sharing":
+            # Toggle data sharing
+            settings["data_sharing"] = not settings["data_sharing"]
+        elif option == "theme":
+            # Toggle theme
+            settings["theme"] = "dark" if settings["theme"] == "light" else "light"
+        elif option == "save":
+            # Save settings
+            await query.edit_message_text(
+                "Settings saved successfully!\n\n"
+                f"Language: {settings['language'].upper()}\n"
+                f"Notifications: {'ON' if settings['notifications'] else 'OFF'}\n"
+                f"Data Sharing: {'ON' if settings['data_sharing'] else 'OFF'}\n"
+                f"Theme: {settings['theme'].capitalize()}\n\n"
+                f"Use /start to return to the main menu."
+            )
+            
+            # Log settings update
+            self.monitor.log_activity(user.id, "settings_saved")
+            
+            return ConversationHandler.END
+        else:
+            await query.edit_message_text(
+                f"Unknown setting: {option}\n"
+                f"Please try again or use /settings to start over."
+            )
+            return SETTINGS
+        
+        # Update settings display
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"Language: {settings['language'].upper()}", 
+                    callback_data="setting_language"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"Notifications: {'ON' if settings['notifications'] else 'OFF'}", 
+                    callback_data="setting_notifications"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"Data Sharing: {'ON' if settings['data_sharing'] else 'OFF'}", 
+                    callback_data="setting_data_sharing"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"Theme: {settings['theme'].capitalize()}", 
+                    callback_data="setting_theme"
+                ),
+            ],
+            [
+                InlineKeyboardButton("Save Settings", callback_data="setting_save"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "Settings Configuration\n\n"
+            "Customize your bot experience by adjusting the settings below:",
+            reply_markup=reply_markup,
+        )
+        
+        # Log setting change
+        self.monitor.log_activity(user.id, f"setting_changed_{option}")
+        
+        return SETTINGS
     
-    # Send daily report at 9:00 AM
-    schedule.every().day.at("09:00").do(send_daily_report)
+    async def admin_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle admin panel selection callbacks."""
+        query = update.callback_query
+        user = query.from_user
+        callback_data = query.data
+        
+        # Check if user has admin privileges
+        if user.id not in self.admin_ids:
+            await query.edit_message_text(
+                "You don't have permission to access the admin panel."
+            )
+            return
+        
+        # Extract admin option
+        option = callback_data.replace("admin_", "")
+        
+        if option == "users":
+            # Get user statistics
+            user_stats = self.monitor.get_user_statistics()
+            
+            await query.edit_message_text(
+                "User Management\n\n"
+                f"Total Users: {user_stats['total_users']}\n"
+                f"Active Users: {user_stats['active_users']}\n"
+                f"New Users (24h): {user_stats['new_users_24h']}\n\n"
+                f"Top Users:\n{user_stats['top_users_formatted']}\n\n"
+                f"Use /admin to return to the admin panel."
+            )
+        elif option == "system":
+            # Get system settings
+            system_settings = self.monitor.get_system_settings()
+            
+            await query.edit_message_text(
+                "System Settings\n\n"
+                f"Max Connections: {system_settings['max_connections']}\n"
+                f"Timeout: {system_settings['timeout']}s\n"
+                f"Rate Limit: {system_settings['rate_limit']}/min\n"
+                f"Maintenance Mode: {'ON' if system_settings['maintenance_mode'] else 'OFF'}\n\n"
+                f"Use /admin to return to the admin panel."
+            )
+        elif option == "logs":
+            # Get recent logs
+            recent_logs = self.monitor.get_recent_logs(10)
+            
+            logs_text = "Recent Logs\n\n"
+            for log in recent_logs:
+                logs_text += f"{log['timestamp']} - {log['level']} - {log['message']}\n"
+            
+            logs_text += "\nUse /admin to return to the admin panel."
+            
+            await query.edit_message_text(logs_text)
+        elif option == "maintenance":
+            # Toggle maintenance mode
+            current_mode = self.monitor.toggle_maintenance_mode()
+            
+            await query.edit_message_text(
+                "Maintenance Mode\n\n"
+                f"Maintenance mode is now {'ON' if current_mode else 'OFF'}.\n\n"
+                f"When maintenance mode is ON, only admins can access the bot.\n\n"
+                f"Use /admin to return to the admin panel."
+            )
+        elif option == "broadcast":
+            # Redirect to broadcast command
+            await query.edit_message_text(
+                "Broadcast Message\n\n"
+                "Use the /broadcast command followed by your message to send "
+                "a broadcast to all users.\n\n"
+                "Example: /broadcast System maintenance scheduled for tomorrow."
+            )
+        else:
+            await query.edit_message_text(
+                f"Unknown admin option: {option}\n"
+                f"Please try again or use /admin to start over."
+            )
+        
+        # Log admin activity
+        self.monitor.log_activity(user.id, f"admin_selection_{option}", is_admin=True)
     
-    while True:
-        try:
-            schedule.run_pending()
-            time.sleep(1)
-        except Exception as e:
-            logger.error(f"Error in scheduler: {str(e)}")
-            time.sleep(60)  # Wait a minute before retrying
+    async def confirm_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle confirmation callbacks."""
+        query = update.callback_query
+        user = query.from_user
+        callback_data = query.data
+        
+        # Extract confirmation option
+        option = callback_data.replace("confirm_", "")
+        
+        if option == "broadcast":
+            # Check if user has admin privileges
+            if user.id not in self.admin_ids:
+                await query.edit_message_text(
+                    "You don't have permission to broadcast messages."
+                )
+                return ConversationHandler.END
+            
+            # Get broadcast message from context
+            broadcast_message = context.user_data.get("broadcast_message", "")
+            
+            if not broadcast_message:
+                await query.edit_message_text(
+                    "Error: Broadcast message not found.\n"
+                    "Please try again using /broadcast command."
+                )
+                return ConversationHandler.END
+            
+            # Simulate broadcasting (in a real bot, this would send to all users)
+            await query.edit_message_text(
+                "Broadcasting message to all users...\n\n"
+                f"Message: {broadcast_message}\n\n"
+                f"This may take some time depending on the number of users."
+            )
+            
+            # Log admin activity
+            self.monitor.log_activity(user.id, "broadcast_confirmed", is_admin=True)
+        elif option == "cancel":
+            await query.edit_message_text(
+                "Action cancelled.\n\n"
+                "Use /start to return to the main menu."
+            )
+        else:
+            await query.edit_message_text(
+                f"Unknown confirmation: {option}\n"
+                f"Please try again or use /start to begin again."
+            )
+        
+        return ConversationHandler.END
+    
+    async def process_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Process user input during a multi-step process."""
+        user = update.effective_user
+        user_input = update.message.text
+        logger.info(f"User {user.id} provided input: {user_input}")
+        
+        # Get process data
+        process = context.user_data.get("process", {})
+        step = process.get("step", 1)
+        
+        if step == 2:
+            # Store user input
+            process["input"] = user_input
+            process["step"] = 3
+            
+            # Create confirmation keyboard
+            keyboard = [
+                [
+                    InlineKeyboardButton("Confirm", callback_data="confirm_process"),
+                    InlineKeyboardButton("Cancel", callback_data="confirm_cancel"),
+                ],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                "Process Summary\n\n"
+                f"Option: {process.get('option', 'Unknown')}\n"
+                f"Input: {user_input}\n\n"
+                f"Please confirm to proceed or cancel:",
+                reply_markup=reply_markup,
+            )
+            
+            # Log user activity
+            self.monitor.log_activity(user.id, "process_input_provided")
+            
+            return CONFIRMATION
+        else:
+            await update.message.reply_text(
+                "Error: Invalid process step.\n"
+                "Please use /process to start over."
+            )
+            return ConversationHandler.END
+    
+    async def cancel_conversation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Cancel the current conversation."""
+        user = update.effective_user
+        logger.info(f"User {user.id} cancelled conversation")
+        
+        await update.message.reply_text(
+            "Process cancelled.\n\n"
+            "Use /start to begin again."
+        )
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, "conversation_cancelled")
+        
+        return ConversationHandler.END
+    
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle regular text messages."""
+        user = update.effective_user
+        message_text = update.message.text
+        logger.info(f"User {user.id} sent message: {message_text}")
+        
+        # Process message using data processor
+        response = self.data_processor.process_message(message_text)
+        
+        await update.message.reply_text(response)
+        
+        # Log user activity
+        self.monitor.log_activity(user.id, "message_processed")
+    
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE):
+        """Handle errors in the dispatcher."""
+        logger.error(f"Exception while handling an update: {context.error}")
+        
+        # Send error message to user if possible
+        if update and isinstance(update, Update) and update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="An error occurred while processing your request. Please try again later."
+            )
+        
+        # Log error
+        self.monitor.log_error(str(context.error))
+    
+    def run(self, webhook_mode: bool = False, webhook_url: str = None, port: int = 8443):
+        """
+        Run the bot either in polling mode or webhook mode.
+        
+        Args:
+            webhook_mode: Whether to use webhook mode instead of polling
+            webhook_url: Webhook URL (required if webhook_mode is True)
+            port: Port to listen on for webhook mode
+        """
+        logger.info("Starting Enhanced Telegram Bot")
+        
+        if webhook_mode:
+            if not webhook_url:
+                raise ValueError("Webhook URL is required for webhook mode")
+            
+            # Start webhook
+            self.application.run_webhook(
+                listen="0.0.0.0",
+                port=port,
+                url_path=self.token,
+                webhook_url=f"{webhook_url}/{self.token}"
+            )
+            logger.info(f"Bot started in webhook mode on port {port}")
+        else:
+            # Start polling
+            self.application.run_polling()
+            logger.info("Bot started in polling mode")
 
-# Flask route for webhook (if needed)
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Handle webhook requests from Telegram"""
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return 'ok', 200
-    else:
-        return 'error', 403
-
-@app.route('/')
-def index():
-    """Simple index page to check if the server is running"""
-    return 'NOVAXA Bot is running!'
 
 def main():
-    """Start the bot."""
-    # Remove webhook if exists
-    bot.remove_webhook()
+    """Main function to run the bot."""
+    # Get bot token from environment variable
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.error("TELEGRAM_BOT_TOKEN environment variable not set")
+        sys.exit(1)
     
-    # Start the scheduler in a separate thread
-    scheduler_thread = threading.Thread(target=run_scheduler)
-    scheduler_thread.daemon = True
-    scheduler_thread.start()
+    # Get admin IDs from environment variable (comma-separated)
+    admin_ids_str = os.environ.get("TELEGRAM_ADMIN_IDS", "")
+    admin_ids = [int(id_str) for id_str in admin_ids_str.split(",") if id_str.strip()]
+    
+    # Create and run the bot
+    bot = EnhancedBot(token, admin_ids)
+    
+    # Check if webhook mode is enabled
+    webhook_mode = os.environ.get("WEBHOOK_MODE", "false").lower() == "true"
+    webhook_url = os.environ.get("WEBHOOK_URL", "")
+    webhook_port = int(os.environ.get("WEBHOOK_PORT", "8443"))
     
     try:
-        # Start polling
-        logger.info("Starting bot polling...")
-        bot.polling(none_stop=True, interval=0)
+        bot.run(webhook_mode=webhook_mode, webhook_url=webhook_url, port=webhook_port)
     except Exception as e:
-        logger.error(f"Error in main polling loop: {str(e)}")
+        logger.error(f"Error running bot: {e}")
+        sys.exit(1)
 
-if __name__ == '__main__':
-    # Choose between polling and webhook based on environment
-    if os.environ.get('WEBHOOK_URL'):
-        # Set webhook
-        webhook_url = os.environ.get('WEBHOOK_URL')
-        bot.remove_webhook()
-        bot.set_webhook(url=webhook_url)
-        
-        # Start Flask server
-        port = int(os.environ.get('PORT', 5000))
-        app.run(host='0.0.0.0', port=port)
-    else:
-        # Start polling
-        main()
+
+if __name__ == "__main__":
+    main()
