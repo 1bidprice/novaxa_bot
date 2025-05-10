@@ -3,3 +3,6 @@ Flask
 requests
 gunicorn
 psutil
+nltk
+textblob
+googletrans==4.0.0-rc1
