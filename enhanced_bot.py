@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Union, Any, Callable
 import telegram
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application,
+    ApplicationBuilder,  # <--- ΑΛΛΑΓΗ ΕΔΩ
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
@@ -85,7 +85,7 @@ class EnhancedBot:
         self.active_conversations = {}
         
         # Initialize the application
-        self.application = Application.builder().token(token).build()
+        self.application = ApplicationBuilder().token(token).build()  # <--- ΑΛΛΑΓΗ ΕΔΩ
         self._setup_handlers()
         
         logger.info("Enhanced Telegram Bot initialized successfully")
@@ -274,7 +274,7 @@ class EnhancedBot:
             f"Active Users: {status['active_users']}\n"
             f"Response Time: {performance['response_time']}ms\n"
             f"Memory Usage: {performance['memory_usage']}MB\n"
-            f"CPU Usage: {performance['cpu_usage']}%\n\n"
+            f"CPU Usage: {performance['cpu_usage']} %\n\n"
             f"Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         
@@ -907,3 +907,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
