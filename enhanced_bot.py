@@ -31,23 +31,19 @@ from telegram.ext import (
 # Third-party imports for Flask Dashboard
 from flask import Flask, render_template, request, redirect, url_for, session
 
-# Local imports
-# Ensure these files exist and are correctly structured
-# For now, we'll add placeholders if they cause issues during Render deployment
+# Local imports (placeholders if missing)
 try:
     from api import TelegramAPI, DataProcessor
 except ImportError:
     TelegramAPI = None
     DataProcessor = None
     logging.warning("api.py not found or contains errors, TelegramAPI and DataProcessor are disabled.")
-
 try:
     from integration import ServiceIntegration, NotificationSystem
 except ImportError:
     ServiceIntegration = None
     NotificationSystem = None
     logging.warning("integration.py not found or contains errors, ServiceIntegration and NotificationSystem are disabled.")
-
 try:
     from monitor import SystemMonitor, PerformanceTracker
 except ImportError:
@@ -64,13 +60,13 @@ logger = logging.getLogger(__name__)
 
 # --- Flask App Definition (Global) ---
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "please_change_this_in_production_and_render_env_vars")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a_very_secret_key_please_change_in_render")
 
 # Environment variables for dashboard credentials
 DASHBOARD_USERNAME = os.environ.get("DASHBOARD_USERNAME", "admin")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "password")
 
-# --- Dashboard Routes ---
+# --- Dashboard Routes (Simplified for Debugging) ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -82,21 +78,17 @@ def login():
             return redirect(url_for("dashboard_home"))
         else:
             logger.warning(f"Failed login attempt for user {username}.")
-            return render_template("login.html", error="Λανθασμένα στοιχεία σύνδεσης")
-    return render_template("login.html")
+            # return render_template("login.html", error="Λανθασμένα στοιχεία σύνδεσης") # Original
+            return "DEBUG: Login Page - Invalid Credentials", 401
+    # return render_template("login.html") # Original
+    return "DEBUG: This is the Login Page. Please POST credentials."
 
 @app.route("/")
 def dashboard_home():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-    # Placeholder data for now
-    bot_status_info = {
-        "status": "Online (Placeholder)",
-        "uptime": "N/A (Placeholder)",
-        "active_chats": 0,
-        "commands_processed": 0
-    }
-    return render_template("dashboard.html", bot_status=bot_status_info)
+    # return render_template("dashboard.html", bot_status={}) # Original
+    return "DEBUG: Welcome to the Dashboard! (Logged In)"
 
 @app.route("/logout")
 def logout():
@@ -112,10 +104,8 @@ class EnhancedBot:
         logger.info(f"Initializing EnhancedBot with admin IDs: {admin_ids}")
         self.application = ApplicationBuilder().token(self.token).build()
         self._setup_handlers()
-        # Initialize other components if they exist and are correctly imported
         self.api_handler = TelegramAPI(self.token) if TelegramAPI else None
         self.data_processor = DataProcessor() if DataProcessor else None
-        # For NotificationSystem, ensure it can be initialized without bot_instance if needed, or pass self.application.bot
         self.notification_sys = NotificationSystem(bot_instance=self.application.bot) if NotificationSystem else None
         self.system_monitor = SystemMonitor() if SystemMonitor else None
         self.performance_tracker = PerformanceTracker() if PerformanceTracker else None
@@ -124,47 +114,41 @@ class EnhancedBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /start command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="Καλώς ήρθατε στο NovaXA Bot! Αυτή είναι η εντολή /start.")
+        await context.bot.send_message(chat_id=user_id, text="Καλώς ήρθατε στο NovaXA Bot! (v_debug) /start")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /help command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="Αυτή είναι η εντολή /help. Εδώ θα βρείτε βοήθεια.")
+        await context.bot.send_message(chat_id=user_id, text="DEBUG: Εντολή /help. Βοήθεια εδώ.")
 
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /status command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="Αυτή είναι η εντολή /status. Η κατάσταση του bot είναι καλή.")
+        await context.bot.send_message(chat_id=user_id, text="DEBUG: Εντολή /status. Κατάσταση: ΟΚ.")
 
     async def id_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /id command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text=f"Το User ID σας είναι: {user_id}")
+        await context.bot.send_message(chat_id=user_id, text=f"DEBUG: User ID: {user_id}")
 
     async def token_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /token command from user_id: {user_id}")
-        # For security, never reveal the actual bot token to users.
-        # This command can be used for other token-related info if needed.
-        await context.bot.send_message(chat_id=user_id, text="Αυτή είναι η εντολή /token. Για λόγους ασφαλείας, το token δεν εμφανίζεται.")
+        await context.bot.send_message(chat_id=user_id, text="DEBUG: Εντολή /token. Το token δεν εμφανίζεται.")
 
     async def echo_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         text = update.message.text
         logger.info(f"Echoing message from user_id {user_id}: {text}")
-        await context.bot.send_message(chat_id=user_id, text=f"Επαναλαμβάνω: {text}")
+        await context.bot.send_message(chat_id=user_id, text=f"DEBUG Echo: {text}")
 
     def _setup_handlers(self):
-        # Command Handlers
         self.application.add_handler(CommandHandler("start", self.start_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("status", self.status_command))
         self.application.add_handler(CommandHandler("id", self.id_command))
         self.application.add_handler(CommandHandler("token", self.token_command))
-        
-        # Message Handler for echo (must be added after command handlers)
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo_handler))
-        
         logger.info("Bot handlers set up for start, help, status, id, token, and echo.")
 
     def run_bot_polling(self):
@@ -178,17 +162,13 @@ def start_telegram_bot_logic():
     if not bot_token:
         logger.error("TELEGRAM_BOT_TOKEN environment variable not set. Bot cannot start.")
         return
-
-    admin_ids_str = os.environ.get("TELEGRAM_ADMIN_IDS", "") # Default to empty string if not set
+    admin_ids_str = os.environ.get("TELEGRAM_ADMIN_IDS", "")
     admin_ids = []
     if admin_ids_str:
         try:
             admin_ids = [int(id_str.strip()) for id_str in admin_ids_str.split(",") if id_str.strip()]
         except ValueError:
             logger.error(f"Invalid TELEGRAM_ADMIN_IDS: '{admin_ids_str}'. Must be comma-separated integers.")
-            # Decide if you want the bot to run without admin IDs or stop
-            # For now, it will run with an empty admin_ids list
-
     try:
         bot_instance = EnhancedBot(token=bot_token, admin_ids=admin_ids)
         bot_instance.run_bot_polling()
@@ -196,12 +176,8 @@ def start_telegram_bot_logic():
         logger.error(f"Error during Telegram bot initialization or polling: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    # This part is mainly for local testing. 
-    # When run with Gunicorn for Render, Gunicorn imports the 'app' object from this file.
-    # The bot logic is started by render_start.sh in a separate thread.
-    logger.info("enhanced_bot.py executed directly. This is usually for local testing.")
-    # If you want to run the bot directly for local testing, uncomment the next line
-    # start_telegram_bot_logic() 
-    # However, for Render, render_start.sh handles starting the bot.
+    logger.info("enhanced_bot.py executed directly. Starting Telegram bot logic as per render_start.sh...")
+    start_telegram_bot_logic() # This will now run when render_start.sh calls python3 enhanced_bot.py
 
-logger.info("enhanced_bot.py loaded. Flask 'app' object is available for Gunicorn. Bot logic is started by render_start.sh")
+logger.info("enhanced_bot.py loaded. Flask 'app' object is available for Gunicorn.")
+
