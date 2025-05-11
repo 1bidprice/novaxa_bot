@@ -66,7 +66,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a_very_secret_key_please_ch
 DASHBOARD_USERNAME = os.environ.get("DASHBOARD_USERNAME", "admin")
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "password")
 
-# --- Dashboard Routes (Simplified for Debugging) ---
+# --- Dashboard Routes (Restored HTML Templates) ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -78,17 +78,21 @@ def login():
             return redirect(url_for("dashboard_home"))
         else:
             logger.warning(f"Failed login attempt for user {username}.")
-            # return render_template("login.html", error="Λανθασμένα στοιχεία σύνδεσης") # Original
-            return "DEBUG: Login Page - Invalid Credentials", 401
-    # return render_template("login.html") # Original
-    return "DEBUG: This is the Login Page. Please POST credentials."
+            return render_template("login.html", error="Λανθασμένα στοιχεία σύνδεσης")
+    return render_template("login.html")
 
 @app.route("/")
 def dashboard_home():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-    # return render_template("dashboard.html", bot_status={}) # Original
-    return "DEBUG: Welcome to the Dashboard! (Logged In)"
+    # Placeholder data for now, you can expand this later
+    bot_status_info = {
+        "status": "Online",
+        "uptime": "Calculating...",
+        "active_chats": 0, # You would fetch this from the bot logic
+        "commands_processed": 0 # You would fetch this from the bot logic
+    }
+    return render_template("dashboard.html", bot_status=bot_status_info)
 
 @app.route("/logout")
 def logout():
@@ -114,33 +118,41 @@ class EnhancedBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /start command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="Καλώς ήρθατε στο NovaXA Bot! (v_debug) /start")
+        await context.bot.send_message(chat_id=user_id, text="Καλώς ήρθατε στο NovaXA Bot! Είμαι έτοιμος.")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /help command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="DEBUG: Εντολή /help. Βοήθεια εδώ.")
+        help_text = (
+            "Διαθέσιμες εντολές:\n"
+            "/start - Έναρξη συνομιλίας με το bot\n"
+            "/help - Εμφάνιση αυτού του μηνύματος βοήθειας\n"
+            "/status - Έλεγχος κατάστασης του bot\n"
+            "/id - Εμφάνιση του Telegram User ID σας\n"
+            "/token - Πληροφορίες σχετικά με το token (δεν εμφανίζεται)"
+        )
+        await context.bot.send_message(chat_id=user_id, text=help_text)
 
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /status command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="DEBUG: Εντολή /status. Κατάσταση: ΟΚ.")
+        await context.bot.send_message(chat_id=user_id, text="Κατάσταση Bot: Online και λειτουργικό.")
 
     async def id_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /id command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text=f"DEBUG: User ID: {user_id}")
+        await context.bot.send_message(chat_id=user_id, text=f"Το Telegram User ID σας είναι: {user_id}")
 
     async def token_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /token command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="DEBUG: Εντολή /token. Το token δεν εμφανίζεται.")
+        await context.bot.send_message(chat_id=user_id, text="Η εντολή /token υπάρχει. Για λόγους ασφαλείας, το πραγματικό token δεν εμφανίζεται ποτέ.")
 
     async def echo_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         text = update.message.text
         logger.info(f"Echoing message from user_id {user_id}: {text}")
-        await context.bot.send_message(chat_id=user_id, text=f"DEBUG Echo: {text}")
+        await context.bot.send_message(chat_id=user_id, text=f"Είπατε: {text}")
 
     def _setup_handlers(self):
         self.application.add_handler(CommandHandler("start", self.start_command))
@@ -177,7 +189,7 @@ def start_telegram_bot_logic():
 
 if __name__ == "__main__":
     logger.info("enhanced_bot.py executed directly. Starting Telegram bot logic as per render_start.sh...")
-    start_telegram_bot_logic() # This will now run when render_start.sh calls python3 enhanced_bot.py
+    start_telegram_bot_logic()
 
 logger.info("enhanced_bot.py loaded. Flask 'app' object is available for Gunicorn.")
 
