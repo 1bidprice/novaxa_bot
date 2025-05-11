@@ -32,9 +32,28 @@ from telegram.ext import (
 from flask import Flask, render_template, request, redirect, url_for, session
 
 # Local imports
-from api import TelegramAPI, DataProcessor
-from integration import ServiceIntegration, NotificationSystem # Βεβαιωθείτε ότι αυτό το αρχείο θα διορθωθεί όπως είπαμε παραπάνω
-from monitor import SystemMonitor, PerformanceTracker
+# Ensure these files exist and are correctly structured
+# For now, we'll add placeholders if they cause issues during Render deployment
+try:
+    from api import TelegramAPI, DataProcessor
+except ImportError:
+    TelegramAPI = None
+    DataProcessor = None
+    logging.warning("api.py not found or contains errors, TelegramAPI and DataProcessor are disabled.")
+
+try:
+    from integration import ServiceIntegration, NotificationSystem
+except ImportError:
+    ServiceIntegration = None
+    NotificationSystem = None
+    logging.warning("integration.py not found or contains errors, ServiceIntegration and NotificationSystem are disabled.")
+
+try:
+    from monitor import SystemMonitor, PerformanceTracker
+except ImportError:
+    SystemMonitor = None
+    PerformanceTracker = None
+    logging.warning("monitor.py not found or contains errors, SystemMonitor and PerformanceTracker are disabled.")
 
 # Configure logging
 logging.basicConfig(
@@ -44,7 +63,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Flask App Definition (Global) ---
-# Προσθήκη template_folder='templates'
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "please_change_this_in_production_and_render_env_vars")
 
@@ -64,16 +82,17 @@ def login():
             return redirect(url_for("dashboard_home"))
         else:
             logger.warning(f"Failed login attempt for user {username}.")
-            return "Λανθασμένα στοιχεία σύνδεσης", 401
+            return render_template("login.html", error="Λανθασμένα στοιχεία σύνδεσης")
     return render_template("login.html")
 
 @app.route("/")
 def dashboard_home():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+    # Placeholder data for now
     bot_status_info = {
-        "status": "Έλεγχος...",
-        "uptime": "N/A",
+        "status": "Online (Placeholder)",
+        "uptime": "N/A (Placeholder)",
         "active_chats": 0,
         "commands_processed": 0
     }
@@ -93,35 +112,60 @@ class EnhancedBot:
         logger.info(f"Initializing EnhancedBot with admin IDs: {admin_ids}")
         self.application = ApplicationBuilder().token(self.token).build()
         self._setup_handlers()
-        self.api_handler = TelegramAPI(self.token)
-        self.data_processor = DataProcessor()
-        self.service_integrator = ServiceIntegration()
-        # ΣΗΜΑΝΤΙΚΟ: Η NotificationSystem πρέπει να διορθωθεί στο integration.py
-        # για να μην περνάει το bot object ως config file.
-        # Πιθανώς χρειάζεται: NotificationSystem(bot_instance=self.application.bot, config_path="your_config.json")
-        # ή απλά NotificationSystem(bot_instance=self.application.bot) αν δεν παίρνει config αρχείο.
-        self.notification_sys = NotificationSystem(self.application.bot) 
-        self.system_monitor = SystemMonitor()
-        self.performance_tracker = PerformanceTracker()
-        logger.info("EnhancedBot components initialized.")
+        # Initialize other components if they exist and are correctly imported
+        self.api_handler = TelegramAPI(self.token) if TelegramAPI else None
+        self.data_processor = DataProcessor() if DataProcessor else None
+        # For NotificationSystem, ensure it can be initialized without bot_instance if needed, or pass self.application.bot
+        self.notification_sys = NotificationSystem(bot_instance=self.application.bot) if NotificationSystem else None
+        self.system_monitor = SystemMonitor() if SystemMonitor else None
+        self.performance_tracker = PerformanceTracker() if PerformanceTracker else None
+        logger.info("EnhancedBot components initialized (or skipped if modules were missing).")
 
-    def _setup_handlers(self):
-        start_handler = CommandHandler("start", self.start)
-        self.application.add_handler(start_handler)
-        echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo)
-        self.application.add_handler(echo_handler)
-        logger.info("Bot handlers set up.")
-
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         logger.info(f"Received /start command from user_id: {user_id}")
-        await context.bot.send_message(chat_id=user_id, text="Καλώς ήρθατε στο NovaXA Bot!")
+        await context.bot.send_message(chat_id=user_id, text="Καλώς ήρθατε στο NovaXA Bot! Αυτή είναι η εντολή /start.")
 
-    async def echo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_chat.id
+        logger.info(f"Received /help command from user_id: {user_id}")
+        await context.bot.send_message(chat_id=user_id, text="Αυτή είναι η εντολή /help. Εδώ θα βρείτε βοήθεια.")
+
+    async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_chat.id
+        logger.info(f"Received /status command from user_id: {user_id}")
+        await context.bot.send_message(chat_id=user_id, text="Αυτή είναι η εντολή /status. Η κατάσταση του bot είναι καλή.")
+
+    async def id_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_chat.id
+        logger.info(f"Received /id command from user_id: {user_id}")
+        await context.bot.send_message(chat_id=user_id, text=f"Το User ID σας είναι: {user_id}")
+
+    async def token_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_chat.id
+        logger.info(f"Received /token command from user_id: {user_id}")
+        # For security, never reveal the actual bot token to users.
+        # This command can be used for other token-related info if needed.
+        await context.bot.send_message(chat_id=user_id, text="Αυτή είναι η εντολή /token. Για λόγους ασφαλείας, το token δεν εμφανίζεται.")
+
+    async def echo_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_chat.id
         text = update.message.text
         logger.info(f"Echoing message from user_id {user_id}: {text}")
-        await context.bot.send_message(chat_id=user_id, text=text)
+        await context.bot.send_message(chat_id=user_id, text=f"Επαναλαμβάνω: {text}")
+
+    def _setup_handlers(self):
+        # Command Handlers
+        self.application.add_handler(CommandHandler("start", self.start_command))
+        self.application.add_handler(CommandHandler("help", self.help_command))
+        self.application.add_handler(CommandHandler("status", self.status_command))
+        self.application.add_handler(CommandHandler("id", self.id_command))
+        self.application.add_handler(CommandHandler("token", self.token_command))
+        
+        # Message Handler for echo (must be added after command handlers)
+        self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo_handler))
+        
+        logger.info("Bot handlers set up for start, help, status, id, token, and echo.")
 
     def run_bot_polling(self):
         logger.info("Starting bot in polling mode...")
@@ -135,8 +179,15 @@ def start_telegram_bot_logic():
         logger.error("TELEGRAM_BOT_TOKEN environment variable not set. Bot cannot start.")
         return
 
-    admin_ids_str = os.environ.get("TELEGRAM_ADMIN_IDS", "")
-    admin_ids = [int(id_str) for id_str in admin_ids_str.split(",") if id_str.strip()]
+    admin_ids_str = os.environ.get("TELEGRAM_ADMIN_IDS", "") # Default to empty string if not set
+    admin_ids = []
+    if admin_ids_str:
+        try:
+            admin_ids = [int(id_str.strip()) for id_str in admin_ids_str.split(",") if id_str.strip()]
+        except ValueError:
+            logger.error(f"Invalid TELEGRAM_ADMIN_IDS: '{admin_ids_str}'. Must be comma-separated integers.")
+            # Decide if you want the bot to run without admin IDs or stop
+            # For now, it will run with an empty admin_ids list
 
     try:
         bot_instance = EnhancedBot(token=bot_token, admin_ids=admin_ids)
@@ -145,8 +196,12 @@ def start_telegram_bot_logic():
         logger.error(f"Error during Telegram bot initialization or polling: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    logger.info("enhanced_bot.py executed directly. Starting Telegram bot logic.")
-    start_telegram_bot_logic()
+    # This part is mainly for local testing. 
+    # When run with Gunicorn for Render, Gunicorn imports the 'app' object from this file.
+    # The bot logic is started by render_start.sh in a separate thread.
+    logger.info("enhanced_bot.py executed directly. This is usually for local testing.")
+    # If you want to run the bot directly for local testing, uncomment the next line
+    # start_telegram_bot_logic() 
+    # However, for Render, render_start.sh handles starting the bot.
 
-logger.info("enhanced_bot.py loaded. Flask 'app' object is available for Gunicorn.")
-
+logger.info("enhanced_bot.py loaded. Flask 'app' object is available for Gunicorn. Bot logic is started by render_start.sh")
