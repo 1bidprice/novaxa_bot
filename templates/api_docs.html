@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bot - Τεκμηρίωση API</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="{{ url_for('static', filename='logo.png') }}" alt="Telegram Bot Logo">
+                    <h1>Telegram Bot API</h1>
+                </div>
+                <div class="user-info">
+                    <a href="{{ url_for('dashboard') }}" class="btn">Επιστροφή στο Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="api-documentation">
+            <div class="api-section">
+                <h2>Εισαγωγή</h2>
+                <p>
+                    Καλωσορίσατε στην τεκμηρίωση του API του Enhanced Telegram Bot. Αυτή η σελίδα παρέχει πληροφορίες για όλα τα διαθέσιμα endpoints, τις παραμέτρους τους και παραδείγματα χρήσης.
+                </p>
+                <p>
+                    Το API επιτρέπει την αλληλεπίδραση με το bot προγραμματιστικά, επιτρέποντας την ενσωμάτωση με άλλες υπηρεσίες και εφαρμογές.
+                </p>
+            </div>
+
+            <div class="api-section">
+                <h2>Αυθεντικοποίηση</h2>
+                <p>
+                    Όλα τα αιτήματα στο API πρέπει να περιλαμβάνουν ένα έγκυρο API key στην κεφαλίδα Authorization.
+                </p>
+                <div class="code-block">
+                    <pre><code>Authorization: Bearer YOUR_API_KEY</code></pre>
+                </div>
+                <p>
+                    Μπορείτε να αποκτήσετε ένα API key από τη σελίδα ρυθμίσεων του dashboard.
+                </p>
+            </div>
+
+            <div class="api-section">
+                <h2>Endpoints</h2>
+                
+                <div class="api-endpoint">
+                    <h3>Αποστολή Μηνύματος</h3>
+                    <div class="endpoint-details">
+                        <span class="method">POST</span>
+                        <span class="url">/api/v1/send-message</span>
+                    </div>
+                    <p>Αποστέλλει ένα μήνυμα σε έναν ή περισσότερους χρήστες.</p>
+                    
+                    <h4>Παράμετροι Αιτήματος</h4>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Παράμετρος</th>
+                                <th>Τύπος</th>
+                                <th>Περιγραφή</th>
+                                <th>Απαιτείται</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>user_ids</td>
+                                <td>array</td>
+                                <td>Λίστα με τα IDs των χρηστών που θα λάβουν το μήνυμα</td>
+                                <td>Ναι</td>
+                            </tr>
+                            <tr>
+                                <td>text</td>
+                                <td>string</td>
+                                <td>Το κείμενο του μηνύματος</td>
+                                <td>Ναι</td>
+                            </tr>
+                            <tr>
+                                <td>parse_mode</td>
+                                <td>string</td>
+                                <td>Τρόπος μορφοποίησης του κειμένου (HTML, Markdown)</td>
+                                <td>Όχι</td>
+                            </tr>
+                            <tr>
+                                <td>disable_notification</td>
+                                <td>boolean</td>
+                                <td>Αν οριστεί σε true, το μήνυμα θα σταλεί χωρίς ειδοποίηση</td>
+                                <td>Όχι</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h4>Παράδειγμα Αιτήματος</h4>
+                    <div class="code-block">
+                        <pre><code>{
+  "user_ids": [123456789, 987654321],
+  "text": "Γεια σας! Αυτό είναι ένα δοκιμαστικό μήνυμα.",
+  "parse_mode": "HTML",
+  "disable_notification": false
+}</code></pre>
+                    </div>
+                    
+                    <h4>Παράδειγμα Απάντησης</h4>
+                    <div class="code-block">
+                        <pre><code>{
+  "success": true,
+  "message": "Το μήνυμα στάλθηκε επιτυχώς",
+  "message_ids": [123, 124]
+}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="api-endpoint">
+                    <h3>Λήψη Χρηστών</h3>
+                    <div class="endpoint-details">
+                        <span class="method">GET</span>
+                        <span class="url">/api/v1/users</span>
+                    </div>
+                    <p>Επιστρέφει λίστα με τους χρήστες του bot.</p>
+                    
+                    <h4>Παράμετροι Ερωτήματος</h4>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Παράμετρος</th>
+                                <th>Τύπος</th>
+                                <th>Περιγραφή</th>
+                                <th>Απαιτείται</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>limit</td>
+                                <td>integer</td>
+                                <td>Μέγιστος αριθμός χρηστών που θα επιστραφούν</td>
+                                <td>Όχι</td>
+                            </tr>
+                            <tr>
+                                <td>offset</td>
+                                <td>integer</td>
+                                <td>Αριθμός χρηστών που θα παραλειφθούν</td>
+                                <td>Όχι</td>
+                            </tr>
+                            <tr>
+                                <td>active_only</td>
+                                <td>boolean</td>
+                                <td>Αν οριστεί σε true, επιστρέφονται μόνο οι ενεργοί χρήστες</td>
+                                <td>Όχι</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h4>Παράδειγμα Απάντησης</h4>
+                    <div class="code-block">
+                        <pre><code>{
+  "success": true,
+  "total_count": 150,
+  "users": [
+    {
+      "id": 123456789,
+      "username": "user1",
+      "first_name": "Γιάννης",
+      "last_name": "Παπαδόπουλος",
+      "language_code": "el",
+      "is_active": true,
+      "joined_date": "2023-05-15T10:30:00Z",
+      "last_activity": "2023-06-20T14:45:00Z"
+    },
+    {
+      "id": 987654321,
+      "username": "user2",
+      "first_name": "Μαρία",
+      "last_name": "Κωνσταντίνου",
+      "language_code": "el",
+      "is_active": true,
+      "joined_date": "2023-04-10T09:15:00Z",
+      "last_activity": "2023-06-19T16:20:00Z"
+    }
+  ]
+}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="api-endpoint">
+                    <h3>Λήψη Στατιστικών</h3>
+                    <div class="endpoint-details">
+                        <span class="method">GET</span>
+                        <span class="url">/api/v1/statistics</span>
+                    </div>
+                    <p>Επιστρέφει στατιστικά στοιχεία για τη χρήση του bot.</p>
+                    
+                    <h4>Παράμετροι Ερωτήματος</h4>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Παράμετρος</th>
+                                <th>Τύπος</th>
+                                <th>Περιγραφή</th>
+                                <th>Απαιτείται</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>period</td>
+                                <td>string</td>
+                                <td>Χρονική περίοδος (day, week, month, year)</td>
+                                <td>Όχι</td>
+                            </tr>
+                            <tr>
+                                <td>start_date</td>
+                                <td>string</td>
+                                <td>Ημερομηνία έναρξης (YYYY-MM-DD)</td>
+                                <td>Όχι</td>
+                            </tr>
+                            <tr>
+                                <td>end_date</td>
+                                <td>string</td>
+                                <td>Ημερομηνία λήξης (YYYY-MM-DD)</td>
+                                <td>Όχι</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h4>Παράδειγμα Απάντησης</h4>
+                    <div class="code-block">
+                        <pre><code>{
+  "success": true,
+  "period": "month",
+  "statistics": {
+    "total_users": 150,
+    "active_users": 85,
+    "new_users": 12,
+    "messages_received": 1250,
+    "messages_sent": 980,
+    "commands": {
+      "/start": 45,
+      "/help": 30,
+      "/settings": 25,
+      "/info": 40,
+      "other": 20
+    },
+    "daily_activity": [
+      {"date": "2023-06-01", "active_users": 65},
+      {"date": "2023-06-02", "active_users": 70},
+      // ... more data
+    ]
+  }
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="api-section">
+                <h2>Κωδικοί Σφαλμάτων</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Κωδικός</th>
+                            <th>Περιγραφή</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>400</td>
+                            <td>Μη έγκυρο αίτημα - Ελέγξτε τις παραμέτρους</td>
+                        </tr>
+                        <tr>
+                            <td>401</td>
+                            <td>Μη εξουσιοδοτημένο - Απαιτείται έγκυρο API key</td>
+                        </tr>
+                        <tr>
+                            <td>403</td>
+                            <td>Απαγορευμένο - Δεν έχετε δικαίωμα πρόσβασης</td>
+                        </tr>
+                        <tr>
+                            <td>404</td>
+                            <td>Δεν βρέθηκε - Ο πόρος δεν υπάρχει</td>
+                        </tr>
+                        <tr>
+                            <td>429</td>
+                            <td>Πάρα πολλά αιτήματα - Έχετε υπερβεί το όριο αιτημάτων</td>
+                        </tr>
+                        <tr>
+                            <td>500</td>
+                            <td>Εσωτερικό σφάλμα διακομιστή</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Enhanced Telegram Bot. Με επιφύλαξη παντός δικαιώματος.</p>
+        </div>
+    </footer>
+</body>
+</html>
