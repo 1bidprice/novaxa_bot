@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+ENV/
+.env
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files (if they are not meant to be versioned)
+# data/customers.json
+# data/triggers.json
+# data/responses.json
+# data/mappings.json
+
+# OS generated files
+.DS_Store
+Thumbs.db

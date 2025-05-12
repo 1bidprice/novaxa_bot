@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Novaxa Bot Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for("static", filename="style.css") }}">
+</head>
+<body>
+    <header>
+        <h1>Novaxa Bot Dashboard</h1>
+        <nav>
+            <a href="{{ url_for("dashboard_home") }}">Αρχική</a>
+            <!-- Add more navigation links here as features are added -->
+            <a href="{{ url_for("logout") }}">Έξοδος</a>
+        </nav>
+    </header>
+    <main>
+        <section id="bot-status">
+            <h2>Κατάσταση Bot</h2>
+            {% if bot_status %}
+                <p><strong>Status:</strong> {{ bot_status.status }}</p>
+                <p><strong>Uptime:</strong> {{ bot_status.uptime }}</p>
+                <p><strong>Active Chats:</strong> {{ bot_status.active_chats }}</p>
+                <p><strong>Commands Processed:</strong> {{ bot_status.commands_processed }}</p>
+            {% else %}
+                <p>Δεν υπάρχουν πληροφορίες κατάστασης για το bot.</p>
+            {% endif %}
+        </section>
+
+        {% if crm_stats %}
+        <section id="crm-overview">
+            <h2>Επισκόπηση CRM</h2>
+            <p><strong>Συνολικοί Πελάτες:</strong> {{ crm_stats.customer_count }}</p>
+            <!-- Add more CRM stats here -->
+        </section>
+        {% endif %}
+
+        {% if sre_stats %}
+        <section id="sre-overview">
+            <h2>Επισκόπηση Smart Reply Engine</h2>
+            <p><strong>Triggers:</strong> {{ sre_stats.trigger_count }}</p>
+            <p><strong>Responses:</strong> {{ sre_stats.response_count }}</p>
+            <p><strong>Mappings:</strong> {{ sre_stats.mapping_count }}</p>
+            <!-- Add more SRE stats here -->
+        </section>
+        {% endif %}
+
+        <!-- Future sections for CRM Management, SRE Configuration etc. -->
+        <section id="crm-management">
+            <h2>Διαχείριση Πελατών (CRM)</h2>
+            <p>Αυτή η ενότητα θα περιλαμβάνει εργαλεία για την προσθήκη, εύρεση και διαχείριση πελατών. (Προς Υλοποίηση)</p>
+            <!-- Example: Search form, Add customer button -->
+        </section>
+
+        <section id="sre-configuration">
+            <h2>Ρυθμίσεις Smart Reply Engine</h2>
+            <p>Αυτή η ενότητα θα επιτρέπει τη διαχείριση των triggers, των απαντήσεων και των αντιστοιχίσεών τους. (Προς Υλοποίηση)</p>
+            <!-- Example: Add trigger, Add response, Manage mappings -->
+        </section>
+
+    </main>
+    <footer>
+        <p>&copy; {{ "now"|date("%Y") }} Novaxa Bot. Με την επιφύλαξη παντός δικαιώματος.</p>
+    </footer>
+</body>
+</html>
